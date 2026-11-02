@@ -70,14 +70,18 @@ export function enablePetting(penguin, camera, renderer) {
     timeline = undefined;
   }
 
-  function onPointerDown(event) {
-    if (!isOverPenguin(event) || timeline || performance.now() - lastPet < 800) return;
+  function react(force = false) {
+    if (!force && (timeline || performance.now() - lastPet < 800)) return false;
+    if (timeline) {
+      timeline.kill();
+      resetPose();
+    }
     lastPet = performance.now();
     heart.visible = true;
 
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       timeline = gsap.delayedCall(0.6, resetPose);
-      return;
+      return true;
     }
 
     timeline = gsap.timeline({ onComplete: resetPose });
@@ -88,6 +92,11 @@ export function enablePetting(penguin, camera, renderer) {
       .to(rightFlipper.rotation, { z: initial.right + 0.3, duration: 0.13, yoyo: true, repeat: 3 }, 0)
       .to(heart.position, { y: initial.heartY + 0.55, duration: 0.7, ease: 'power1.out' }, 0)
       .to(heart.material, { opacity: 0, duration: 0.35 }, 0.35);
+    return true;
+  }
+
+  function onPointerDown(event) {
+    if (isOverPenguin(event)) react();
   }
 
   function onPointerMove(event) {
@@ -117,5 +126,6 @@ export function enablePetting(penguin, camera, renderer) {
     activeInteractions.delete(penguin);
   };
   activeInteractions.set(penguin, dispose);
+  dispose.react = react;
   return dispose;
 }

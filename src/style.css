@@ -23,3 +23,58 @@ body {
 canvas {
   display: block;
 }
+
+.pet-panel {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  width: min(220px, calc(100vw - 48px));
+  padding: 16px;
+  border: 2px solid #ffffff;
+  border-radius: 16px;
+  background: rgba(245, 251, 255, 0.92);
+  box-shadow: 0 8px 24px rgba(53, 92, 133, 0.16);
+  color: #1b304b;
+  font: 600 14px/1.4 system-ui, sans-serif;
+}
+
+.pet-panel__label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.pet-panel__track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #c9e2f1;
+}
+
+.pet-panel__fill {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: #79b9dc;
+  transition: width 200ms ease;
+}
+
+.pet-panel__feed {
+  width: 100%;
+  margin-top: 14px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: #355c85;
+  color: white;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pet-panel__feed:hover { background: #1b304b; }
+.pet-panel__feed:disabled { opacity: 0.55; cursor: default; }
+.pet-panel__feed:focus-visible { outline: 3px solid #ffcc26; outline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pet-panel__fill { transition: none; }
+}

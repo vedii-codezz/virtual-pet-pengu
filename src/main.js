@@ -1,6 +1,8 @@
 import { createPenguin } from './pet/penguin.js';
 import { animatePenguin } from './pet/animations.js';
 import { enablePetting } from './pet/interactions.js';
+import { createPetState } from './pet/petState.js';
+import { enableFeeding } from './pet/feeding.js';
 import * as THREE from 'three';
 import './style.css';
 
@@ -72,8 +74,19 @@ const penguin = createPenguin();
 
 // Add the penguin to the scene
 scene.add(penguin);
-animatePenguin(penguin);
-enablePetting(penguin, camera, renderer);
+const stopIdle = animatePenguin(penguin);
+const stopPetting = enablePetting(penguin, camera, renderer);
+const petState = createPetState();
+const stopFeeding = enableFeeding({ scene, penguin, state: petState, onFed: () => stopPetting.react(true) });
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    stopFeeding();
+    petState.dispose();
+    stopPetting();
+    stopIdle();
+  });
+}
 
 
 // 7. Render continuously
