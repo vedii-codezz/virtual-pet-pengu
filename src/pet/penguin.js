@@ -236,7 +236,10 @@ export function createPenguin() {
     const reaction = new THREE.Group();
     reaction.name = 'reaction';
     reaction.add(...penguin.children);
-    penguin.add(reaction);
+    const sleep = new THREE.Group();
+    sleep.name = 'sleep';
+    sleep.add(reaction);
+    penguin.add(sleep);
 
     return penguin;
 }

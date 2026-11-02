@@ -24,22 +24,42 @@ export function enableFeeding({ scene, penguin, state, onFed }) {
   panel.innerHTML = `
     <div class="pet-panel__label"><span>Hunger</span><strong class="pet-panel__value"></strong></div>
     <div class="pet-panel__track" role="progressbar" aria-label="Hunger" aria-valuemin="0" aria-valuemax="100"><div class="pet-panel__fill"></div></div>
+    <div class="pet-panel__label pet-panel__label--energy"><span>Energy</span><strong class="pet-panel__energy-value"></strong></div>
+    <div class="pet-panel__track" role="progressbar" aria-label="Energy" aria-valuemin="0" aria-valuemax="100"><div class="pet-panel__fill pet-panel__energy-fill"></div></div>
     <button class="pet-panel__feed" type="button">🐟 Feed</button>
+    <button class="pet-panel__sleep" type="button" aria-pressed="false">🌙 Sleep</button>
+    <p class="pet-panel__hint" aria-live="polite"></p>
   `;
   document.querySelector('#app').appendChild(panel);
   const button = panel.querySelector('button');
   const value = panel.querySelector('.pet-panel__value');
   const track = panel.querySelector('.pet-panel__track');
   const fill = panel.querySelector('.pet-panel__fill');
+  const energyValue = panel.querySelector('.pet-panel__energy-value');
+  const energyTrack = panel.querySelector('[aria-label="Energy"]');
+  const energyFill = panel.querySelector('.pet-panel__energy-fill');
+  const sleepButton = panel.querySelector('.pet-panel__sleep');
+  const hint = panel.querySelector('.pet-panel__hint');
+  let fish;
+  let timeline;
+  let disposed = false;
   const unsubscribe = state.subscribe((hunger) => {
     value.textContent = `${hunger}%`;
     track.setAttribute('aria-valuenow', String(hunger));
     fill.style.width = `${hunger}%`;
   });
 
-  let fish;
-  let timeline;
-  let disposed = false;
+  const unsubscribeStatus = state.subscribeStatus(({ energy, sleeping }) => {
+    energyValue.textContent = `${energy}%`;
+    energyTrack.setAttribute('aria-valuenow', String(energy));
+    energyFill.style.width = `${energy}%`;
+    button.disabled = sleeping || Boolean(timeline);
+    button.title = sleeping ? 'Wake Pengu to feed' : '';
+    sleepButton.disabled = Boolean(timeline);
+    sleepButton.textContent = sleeping ? '☀️ Wake' : '🌙 Sleep';
+    sleepButton.setAttribute('aria-pressed', String(sleeping));
+    hint.textContent = sleeping ? 'Pengu is resting. Wake to feed or pet.' : '';
+  });
 
   function removeFish() {
     if (!fish) return;
@@ -53,15 +73,17 @@ export function enableFeeding({ scene, penguin, state, onFed }) {
   function finishFeed() {
     removeFish();
     timeline = undefined;
-    button.disabled = false;
+    button.disabled = state.sleeping;
+    sleepButton.disabled = false;
     if (disposed) return;
     state.feed();
     onFed();
   }
 
   function feed() {
-    if (timeline || disposed) return;
+    if (timeline || disposed || state.sleeping) return;
     button.disabled = true;
+    sleepButton.disabled = true;
     fish = createFish();
     scene.add(fish);
     const beak = penguin.localToWorld(new THREE.Vector3(0, 2.42, 1.3));
@@ -84,14 +106,20 @@ export function enableFeeding({ scene, penguin, state, onFed }) {
   }
 
   button.addEventListener('click', feed);
+  const toggleSleep = () => {
+    if (!timeline) state.setSleeping(!state.sleeping);
+  };
+  sleepButton.addEventListener('click', toggleSleep);
 
   return () => {
     if (disposed) return;
     disposed = true;
     button.removeEventListener('click', feed);
+    sleepButton.removeEventListener('click', toggleSleep);
     timeline?.kill();
     removeFish();
     unsubscribe();
+    unsubscribeStatus();
     panel.remove();
   };
 }

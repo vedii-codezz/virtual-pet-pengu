@@ -8,6 +8,8 @@ export function animatePenguin(penguin) {
   const eyes = [penguin.getObjectByName('leftEye'), penguin.getObjectByName('rightEye')]
     .filter(Boolean);
   const eyeScales = eyes.map((eye) => eye.scale.y);
+  const sleepLayer = penguin.getObjectByName('sleep');
+  const initialSleepTilt = sleepLayer?.rotation.x ?? 0;
   const initial = {
     scaleY: penguin.scale.y,
     rotationZ: penguin.rotation.z,
@@ -17,6 +19,8 @@ export function animatePenguin(penguin) {
   let tweens = [];
   let blinkTimer;
   let blinkTimeline;
+  let transitions = [];
+  let sleeping = false;
 
   function scheduleBlink() {
     blinkTimer = gsap.delayedCall(3 + Math.random() * 3, () => {
@@ -47,13 +51,36 @@ export function animatePenguin(penguin) {
     blinkTimeline?.kill();
     blinkTimer = undefined;
     blinkTimeline = undefined;
+    transitions.forEach((tween) => tween.kill());
+    transitions = [];
 
     penguin.scale.y = initial.scaleY;
     penguin.rotation.z = initial.rotationZ;
     penguin.position.y = initial.positionY;
-    eyes.forEach((eye, index) => { eye.scale.y = eyeScales[index]; });
+    if (reducedMotion.matches) {
+      eyes.forEach((eye, index) => { eye.scale.y = sleeping ? eyeScales[index] * 0.08 : eyeScales[index]; });
+      if (sleepLayer) sleepLayer.rotation.x = sleeping ? initialSleepTilt + 0.12 : initialSleepTilt;
+      return;
+    }
 
-    if (reducedMotion.matches) return;
+    transitions.push(gsap.to(eyes.map((eye) => eye.scale), {
+      y: (index) => sleeping ? eyeScales[index] * 0.08 : eyeScales[index],
+      duration: 0.3,
+      ease: 'sine.inOut'
+    }));
+    if (sleepLayer) transitions.push(gsap.to(sleepLayer.rotation, {
+      x: sleeping ? initialSleepTilt + 0.12 : initialSleepTilt,
+      duration: 0.45,
+      ease: 'sine.inOut'
+    }));
+
+    if (sleeping) {
+      tweens = [gsap.fromTo(penguin.scale,
+        { y: initial.scaleY },
+        { y: initial.scaleY * 1.012, duration: 3, ease: 'sine.inOut', yoyo: true, repeat: -1 }
+      )];
+      return;
+    }
 
     tweens = [
       gsap.fromTo(penguin.scale,
@@ -80,11 +107,18 @@ export function animatePenguin(penguin) {
     tweens.forEach((tween) => tween.kill());
     blinkTimer?.kill();
     blinkTimeline?.kill();
+    transitions.forEach((tween) => tween.kill());
     penguin.scale.y = initial.scaleY;
     penguin.rotation.z = initial.rotationZ;
     penguin.position.y = initial.positionY;
     eyes.forEach((eye, index) => { eye.scale.y = eyeScales[index]; });
+    if (sleepLayer) sleepLayer.rotation.x = initialSleepTilt;
     activeAnimations.delete(penguin);
+  };
+  stop.setSleeping = (value) => {
+    if (sleeping === Boolean(value)) return;
+    sleeping = Boolean(value);
+    updateAnimation();
   };
   activeAnimations.set(penguin, stop);
   return stop;

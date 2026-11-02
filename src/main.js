@@ -3,6 +3,7 @@ import { animatePenguin } from './pet/animations.js';
 import { enablePetting } from './pet/interactions.js';
 import { createPetState } from './pet/petState.js';
 import { enableFeeding } from './pet/feeding.js';
+import { enableSleep } from './pet/sleep.js';
 import * as THREE from 'three';
 import './style.css';
 
@@ -75,30 +76,37 @@ const penguin = createPenguin();
 // Add the penguin to the scene
 scene.add(penguin);
 const stopIdle = animatePenguin(penguin);
-const stopPetting = enablePetting(penguin, camera, renderer);
 const petState = createPetState();
+const stopPetting = enablePetting(penguin, camera, renderer, petState);
 const stopFeeding = enableFeeding({ scene, penguin, state: petState, onFed: () => stopPetting.react(true) });
+const stopSleep = enableSleep(penguin, petState, stopIdle);
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
+    cancelAnimationFrame(animationFrame);
+    window.removeEventListener('resize', onResize);
     stopFeeding();
+    stopSleep();
     petState.dispose();
     stopPetting();
     stopIdle();
+    renderer.dispose();
+    renderer.domElement.remove();
   });
 }
 
 
 // 7. Render continuously
+let animationFrame;
 function animate() {
-  requestAnimationFrame(animate);
+  animationFrame = requestAnimationFrame(animate);
   renderer.render(scene, camera);
 }
 
 animate();
 
 // 8. Handle browser resizing
-window.addEventListener('resize', () => {
+function onResize() {
   camera.aspect =
     window.innerWidth / window.innerHeight;
 
@@ -108,4 +116,5 @@ window.addEventListener('resize', () => {
     window.innerWidth,
     window.innerHeight
   );
-});
+}
+window.addEventListener('resize', onResize);
