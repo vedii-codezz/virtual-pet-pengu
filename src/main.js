@@ -2,6 +2,9 @@ import { createPenguin, disposePenguin } from './pet/penguin.js';
 import { animatePenguin } from './pet/animations.js';
 import { enablePetting } from './pet/interactions.js';
 import { createRoaming } from './pet/roaming.js';
+import { createSpeech } from './pet/speech.js';
+import { createPurrAudio } from './pet/audio.js';
+import { createSleepVisual } from './pet/sleep.js';
 import * as THREE from 'three';
 import './style.css';
 
@@ -10,8 +13,8 @@ scene.background = new THREE.Color('#0B0B0F');
 
 const aspect = window.innerWidth / window.innerHeight;
 const camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 100);
-camera.position.set(0, 10.2, 20.5);
-camera.lookAt(0, 6.7, 0);
+camera.position.set(0, 12.0, 22.5);
+camera.lookAt(0, 8.5, 0);
 
 const renderer = new THREE.WebGLRenderer({
   antialias: true
@@ -41,14 +44,22 @@ sunlight.position.set(-4, 9, 7);
 scene.add(sunlight);
 
 const penguin = createPenguin();
-const roaming = createRoaming(penguin, camera);
-
-scene.add(roaming.world);
 const stopIdle = animatePenguin(penguin);
-const stopPetting = enablePetting(penguin, camera, renderer,
-  (active) => roaming.setPaused('petting', active));
+const speech = createSpeech(penguin, camera, renderer.domElement);
+const audio = createPurrAudio();
+const sleep = createSleepVisual(penguin, camera, renderer.domElement, stopIdle);
+const roaming = createRoaming(penguin, camera, renderer.domElement, {
+  onMessage: (message) => speech.show(message),
+  onSleepChange: (sleeping) => sleep.setSleeping(sleeping)
+});
+scene.add(roaming.world);
+const stopPetting = enablePetting(penguin, camera, renderer, {
+  onActiveChange: (active) => roaming.setShy(active),
+  onPet: () => { speech.show('hehe... ♡', true); audio.purr(); },
+  canPet: () => roaming.state !== 'SLEEPING'
+});
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-const onMotionChange = () => roaming.setPaused('motion', reducedMotion.matches);
+const onMotionChange = () => roaming.setReducedMotion(reducedMotion.matches);
 onMotionChange();
 reducedMotion.addEventListener('change', onMotionChange);
 
@@ -58,8 +69,11 @@ if (import.meta.hot) {
     window.removeEventListener('resize', onResize);
     reducedMotion.removeEventListener('change', onMotionChange);
     stopPetting();
-    stopIdle();
     roaming.dispose();
+    sleep.dispose();
+    speech.dispose();
+    audio.dispose();
+    stopIdle();
     disposePenguin(penguin);
     renderer.dispose();
     renderer.domElement.remove();
@@ -74,6 +88,8 @@ function animate() {
   const now = performance.now();
   roaming.update((now - previousFrame) / 1000);
   previousFrame = now;
+  speech.update();
+  sleep.update();
   renderer.render(scene, camera);
 }
 

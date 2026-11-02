@@ -19,18 +19,24 @@ function createHeart() {
   const texture = new THREE.CanvasTexture(canvas);
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
   const heart = new THREE.Sprite(material);
-  heart.position.set(0, 4.35, 0);
+  heart.position.set(0, 4.02, 0);
   heart.scale.set(0.55, 0.55, 1);
   heart.visible = false;
   return heart;
 }
 
-export function enablePetting(penguin, camera, renderer, onActiveChange = () => {}) {
+export function enablePetting(penguin, camera, renderer, {
+  onActiveChange = () => {},
+  onPet = () => {},
+  canPet = () => true
+} = {}) {
   if (activeInteractions.has(penguin)) return activeInteractions.get(penguin);
 
   const reaction = penguin.getObjectByName('reaction');
   const leftFlipper = penguin.getObjectByName('leftFlipper');
   const rightFlipper = penguin.getObjectByName('rightFlipper');
+  const head = penguin.getObjectByName('head');
+  const cheek = penguin.getObjectByName('leftCheek')?.material;
   if (!reaction || !leftFlipper || !rightFlipper) return () => {};
 
   const canvas = renderer.domElement;
@@ -43,6 +49,8 @@ export function enablePetting(penguin, camera, renderer, onActiveChange = () => 
     tilt: reaction.rotation.z,
     left: leftFlipper.rotation.z,
     right: rightFlipper.rotation.z,
+    head: head.rotation.z,
+    blush: cheek.color.clone(),
     heartY: heart.position.y
   };
   let lastPet = -Infinity;
@@ -64,6 +72,8 @@ export function enablePetting(penguin, camera, renderer, onActiveChange = () => 
     reaction.rotation.z = initial.tilt;
     leftFlipper.rotation.z = initial.left;
     rightFlipper.rotation.z = initial.right;
+    head.rotation.z = initial.head;
+    cheek.color.copy(initial.blush);
     heart.position.y = initial.heartY;
     heart.material.opacity = 1;
     heart.visible = false;
@@ -76,16 +86,22 @@ export function enablePetting(penguin, camera, renderer, onActiveChange = () => 
     lastPet = performance.now();
     heart.visible = true;
     onActiveChange(true);
+    onPet();
 
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      cheek.color.set('#FF8FA4');
       timeline = gsap.delayedCall(0.6, resetPose);
       return true;
     }
 
     timeline = gsap.timeline({ onComplete: resetPose });
-    timeline.to(reaction.position, { y: initial.y + 0.24, duration: 0.22, ease: 'power2.out' }, 0)
-      .to(reaction.position, { y: initial.y, duration: 0.35, ease: 'bounce.out' }, 0.22)
-      .to(reaction.rotation, { z: initial.tilt + 0.08, duration: 0.16, yoyo: true, repeat: 1 }, 0)
+    timeline.to(reaction.position, { y: initial.y + 0.17, duration: 0.18, ease: 'power2.out' }, 0)
+      .to(reaction.position, { y: initial.y, duration: 0.32, ease: 'bounce.out' }, 0.18)
+      .to(reaction.rotation, { z: initial.tilt + 0.045, duration: 0.2, yoyo: true, repeat: 1 }, 0)
+      .to(head.rotation, { z: initial.head + 0.09, duration: 0.22, ease: 'sine.out' }, 0.05)
+      .to(head.rotation, { z: initial.head, duration: 0.35, ease: 'sine.inOut' }, 0.35)
+      .to(cheek.color, { r: new THREE.Color('#FF8FA4').r, g: new THREE.Color('#FF8FA4').g, b: new THREE.Color('#FF8FA4').b, duration: 0.28 }, 0)
+      .to(cheek.color, { r: initial.blush.r, g: initial.blush.g, b: initial.blush.b, duration: 0.45 }, 0.4)
       .to(leftFlipper.rotation, { z: initial.left - 0.3, duration: 0.13, yoyo: true, repeat: 3 }, 0)
       .to(rightFlipper.rotation, { z: initial.right + 0.3, duration: 0.13, yoyo: true, repeat: 3 }, 0)
       .to(heart.position, { y: initial.heartY + 0.55, duration: 0.7, ease: 'power1.out' }, 0)
@@ -94,7 +110,7 @@ export function enablePetting(penguin, camera, renderer, onActiveChange = () => 
   }
 
   function onPointerDown(event) {
-    if (isOverPenguin(event)) react();
+    if (canPet() && isOverPenguin(event)) react();
   }
 
   function onPointerMove(event) {
