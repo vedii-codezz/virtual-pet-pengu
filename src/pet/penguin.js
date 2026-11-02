@@ -178,24 +178,18 @@ export function createPenguin() {
     penguin.add(voxelFace);
 
 
-    // Left eye
-    penguin.add(
-        createCube(0.43, 0.48, 0.08, brown, -0.55, 2.7, 1.06)
-    );
+    // Each eye has its own pivot for blinking and future expressions.
+    function createEye(name, x) {
+        const eye = new THREE.Group();
+        eye.name = name;
+        eye.position.set(x, 2.7, 1.06);
+        eye.add(createCube(0.43, 0.48, 0.08, brown, 0, 0, 0));
+        eye.add(createCube(0.12, 0.12, 0.04, '#FFFFFF', -0.1, 0.12, 0.06));
+        penguin.add(eye);
+    }
 
-    // Right eye
-    penguin.add(
-        createCube(0.43, 0.48, 0.08, brown, 0.55, 2.7, 1.06)
-    );
-
-    // Tiny white highlights
-    penguin.add(
-        createCube(0.12, 0.12, 0.04, '#FFFFFF', -0.65, 2.82, 1.12)
-    );
-
-    penguin.add(
-        createCube(0.12, 0.12, 0.04, '#FFFFFF', 0.45, 2.82, 1.12)
-    );
+    createEye('leftEye', -0.55);
+    createEye('rightEye', 0.55);
 
     // Pink cheeks
     penguin.add(
