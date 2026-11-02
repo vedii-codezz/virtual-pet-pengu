@@ -218,6 +218,7 @@ export function createPenguin() {
     );
 
     leftFlipper.rotation.z = -0.18;
+    leftFlipper.name = 'leftFlipper';
     penguin.add(leftFlipper);
 
     // RIGHT FLIPPER
@@ -228,8 +229,14 @@ export function createPenguin() {
     );
 
     rightFlipper.rotation.z = 0.18;
+    rightFlipper.name = 'rightFlipper';
     penguin.add(rightFlipper);
 
+    // Keep idle transforms on the root independent of petting reactions.
+    const reaction = new THREE.Group();
+    reaction.name = 'reaction';
+    reaction.add(...penguin.children);
+    penguin.add(reaction);
 
     return penguin;
 }

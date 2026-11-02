@@ -1,5 +1,6 @@
 import { createPenguin } from './pet/penguin.js';
 import { animatePenguin } from './pet/animations.js';
+import { enablePetting } from './pet/interactions.js';
 import * as THREE from 'three';
 import './style.css';
 
@@ -72,6 +73,7 @@ const penguin = createPenguin();
 // Add the penguin to the scene
 scene.add(penguin);
 animatePenguin(penguin);
+enablePetting(penguin, camera, renderer);
 
 
 // 7. Render continuously
