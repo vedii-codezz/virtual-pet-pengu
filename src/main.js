@@ -99,10 +99,12 @@ if (import.meta.hot) {
 
 // 7. Render continuously
 let animationFrame;
-const clock = new THREE.Clock();
+let previousFrame = performance.now();
 function animate() {
   animationFrame = requestAnimationFrame(animate);
-  roaming.update(clock.getDelta());
+  const now = performance.now();
+  roaming.update((now - previousFrame) / 1000);
+  previousFrame = now;
   renderer.render(scene, camera);
 }
 
