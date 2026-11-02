@@ -25,7 +25,7 @@ function createHeart() {
   return heart;
 }
 
-export function enablePetting(penguin, camera, renderer, state) {
+export function enablePetting(penguin, camera, renderer, state, onActiveChange = () => {}) {
   if (activeInteractions.has(penguin)) return activeInteractions.get(penguin);
 
   const reaction = penguin.getObjectByName('reaction');
@@ -68,6 +68,7 @@ export function enablePetting(penguin, camera, renderer, state) {
     heart.material.opacity = 1;
     heart.visible = false;
     timeline = undefined;
+    onActiveChange(false);
   }
 
   function react(force = false) {
@@ -79,6 +80,7 @@ export function enablePetting(penguin, camera, renderer, state) {
     }
     lastPet = performance.now();
     heart.visible = true;
+    onActiveChange(true);
 
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       timeline = gsap.delayedCall(0.6, resetPose);

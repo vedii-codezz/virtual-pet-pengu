@@ -117,6 +117,7 @@ export function createPenguin() {
         yellow,
         -0.55, 0.15, 0.35
     );
+    leftFoot.name = 'leftFoot';
 
     penguin.add(leftFoot);
 
@@ -126,17 +127,18 @@ export function createPenguin() {
         yellow,
         0.55, 0.15, 0.35
     );
+    rightFoot.name = 'rightFoot';
 
     penguin.add(rightFoot);
 
     // ORANGE FOOT TIPS
-    penguin.add(
-        createCube(0.65, 0.13, 0.3, orange, -0.55, 0.07, 0.65)
-    );
+    const leftFootTip = createCube(0.65, 0.13, 0.3, orange, -0.55, 0.07, 0.65);
+    leftFootTip.name = 'leftFootTip';
+    penguin.add(leftFootTip);
 
-    penguin.add(
-        createCube(0.65, 0.13, 0.3, orange, 0.55, 0.07, 0.65)
-    );
+    const rightFootTip = createCube(0.65, 0.13, 0.3, orange, 0.55, 0.07, 0.65);
+    rightFootTip.name = 'rightFootTip';
+    penguin.add(rightFootTip);
 
 
     // FACE DETAILS

@@ -12,7 +12,7 @@ body {
 }
 
 body {
-  background: #dceef8;
+  background: #0b0b0f;
 }
 
 #app {
@@ -30,11 +30,11 @@ canvas {
   left: 24px;
   width: min(220px, calc(100vw - 48px));
   padding: 16px;
-  border: 2px solid #ffffff;
+  border: 1px solid #355c85;
   border-radius: 16px;
-  background: rgba(245, 251, 255, 0.92);
-  box-shadow: 0 8px 24px rgba(53, 92, 133, 0.16);
-  color: #1b304b;
+  background: rgba(27, 48, 75, 0.94);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  color: #dceef8;
   font: 600 14px/1.4 system-ui, sans-serif;
 }
 
@@ -50,7 +50,7 @@ canvas {
   height: 10px;
   overflow: hidden;
   border-radius: 99px;
-  background: #c9e2f1;
+  background: #111d30;
 }
 
 .pet-panel__fill {
@@ -68,17 +68,17 @@ canvas {
   padding: 9px 12px;
   border: 0;
   border-radius: 10px;
-  background: #355c85;
-  color: white;
+  background: #79b9dc;
+  color: #0b0b0f;
   font: inherit;
   cursor: pointer;
 }
 
-.pet-panel__sleep { margin-top: 8px; background: #79b9dc; color: #1b304b; }
+.pet-panel__sleep { margin-top: 8px; background: #355c85; color: #dceef8; }
 .pet-panel__feed:hover, .pet-panel__sleep:hover { filter: brightness(0.9); }
 .pet-panel__feed:disabled, .pet-panel__sleep:disabled { opacity: 0.55; cursor: default; }
 .pet-panel__feed:focus-visible, .pet-panel__sleep:focus-visible { outline: 3px solid #ffcc26; outline-offset: 3px; }
-.pet-panel__hint { min-height: 1.4em; margin-top: 8px; font-size: 12px; color: #355c85; }
+.pet-panel__hint { min-height: 1.4em; margin-top: 8px; font-size: 12px; color: #dceef8; }
 
 @media (max-width: 480px) {
   .pet-panel { top: 12px; left: 12px; width: min(210px, calc(100vw - 24px)); padding: 12px; }

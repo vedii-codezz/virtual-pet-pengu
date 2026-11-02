@@ -18,7 +18,7 @@ function createFish() {
   return fish;
 }
 
-export function enableFeeding({ scene, penguin, state, onFed }) {
+export function enableFeeding({ scene, penguin, state, onFed, onFeedingChange = () => {} }) {
   const panel = document.createElement('div');
   panel.className = 'pet-panel';
   panel.innerHTML = `
@@ -78,12 +78,14 @@ export function enableFeeding({ scene, penguin, state, onFed }) {
     if (disposed) return;
     state.feed();
     onFed();
+    onFeedingChange(false);
   }
 
   function feed() {
     if (timeline || disposed || state.sleeping) return;
     button.disabled = true;
     sleepButton.disabled = true;
+    onFeedingChange(true);
     fish = createFish();
     scene.add(fish);
     const beak = penguin.localToWorld(new THREE.Vector3(0, 2.42, 1.3));
@@ -117,6 +119,7 @@ export function enableFeeding({ scene, penguin, state, onFed }) {
     button.removeEventListener('click', feed);
     sleepButton.removeEventListener('click', toggleSleep);
     timeline?.kill();
+    onFeedingChange(false);
     removeFish();
     unsubscribe();
     unsubscribeStatus();
