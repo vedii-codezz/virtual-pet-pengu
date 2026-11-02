@@ -19,13 +19,13 @@ function createHeart() {
   const texture = new THREE.CanvasTexture(canvas);
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
   const heart = new THREE.Sprite(material);
-  heart.position.set(0, 4.1, 0);
+  heart.position.set(0, 4.35, 0);
   heart.scale.set(0.55, 0.55, 1);
   heart.visible = false;
   return heart;
 }
 
-export function enablePetting(penguin, camera, renderer, state, onActiveChange = () => {}) {
+export function enablePetting(penguin, camera, renderer, onActiveChange = () => {}) {
   if (activeInteractions.has(penguin)) return activeInteractions.get(penguin);
 
   const reaction = penguin.getObjectByName('reaction');
@@ -71,13 +71,8 @@ export function enablePetting(penguin, camera, renderer, state, onActiveChange =
     onActiveChange(false);
   }
 
-  function react(force = false) {
-    if (state?.sleeping) return false;
-    if (!force && (timeline || performance.now() - lastPet < 800)) return false;
-    if (timeline) {
-      timeline.kill();
-      resetPose();
-    }
+  function react() {
+    if (timeline || performance.now() - lastPet < 800) return false;
     lastPet = performance.now();
     heart.visible = true;
     onActiveChange(true);
@@ -103,7 +98,7 @@ export function enablePetting(penguin, camera, renderer, state, onActiveChange =
   }
 
   function onPointerMove(event) {
-    canvas.style.cursor = !state?.sleeping && event.pointerType === 'mouse' && isOverPenguin(event) ? 'pointer' : '';
+    canvas.style.cursor = event.pointerType === 'mouse' && isOverPenguin(event) ? 'pointer' : '';
   }
 
   function onPointerLeave() {
@@ -113,12 +108,6 @@ export function enablePetting(penguin, camera, renderer, state, onActiveChange =
   canvas.addEventListener('pointerdown', onPointerDown);
   canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerleave', onPointerLeave);
-  const unsubscribe = state?.subscribeStatus(({ sleeping }) => {
-    if (!sleeping) return;
-    canvas.style.cursor = '';
-    timeline?.kill();
-    resetPose();
-  });
 
   const dispose = () => {
     if (disposed) return;
@@ -127,7 +116,6 @@ export function enablePetting(penguin, camera, renderer, state, onActiveChange =
     canvas.removeEventListener('pointermove', onPointerMove);
     canvas.removeEventListener('pointerleave', onPointerLeave);
     canvas.style.cursor = '';
-    unsubscribe?.();
     timeline?.kill();
     resetPose();
     penguin.remove(heart);
@@ -136,6 +124,5 @@ export function enablePetting(penguin, camera, renderer, state, onActiveChange =
     activeInteractions.delete(penguin);
   };
   activeInteractions.set(penguin, dispose);
-  dispose.react = react;
   return dispose;
 }
