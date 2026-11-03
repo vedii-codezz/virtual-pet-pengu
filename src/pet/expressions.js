@@ -65,14 +65,33 @@ export function createExpressions(penguin) {
     return true;
   }
 
+  function blinkEyes(count = 1) {
+    if (expression === 'SLEEPING' || expression === 'YAWNING' || reduced.matches) return;
+    blink?.kill();
+    blink = gsap.timeline({ onComplete: () => { blink = undefined; } });
+    for (let index = 0; index < count; index++) {
+      blink.to(eyes.map((part) => part.scale), { y: 0.08, duration: 0.08, overwrite: true })
+        .to(eyes.map((part) => part.scale), { y: faces[expression][0], duration: 0.14, overwrite: true });
+    }
+  }
+
+  function wakeBlink() {
+    if (reduced.matches) return;
+    blink?.kill();
+    blink = gsap.timeline({ onComplete: () => { blink = undefined; } });
+    eyes.forEach((eye) => { eye.scale.y = 0.08; });
+    blink.to(eyes[0].scale, { y: faces.SLEEPY[0], duration: 0.2, overwrite: true })
+      .to(eyes[1].scale, { y: faces.SLEEPY[0], duration: 0.2, overwrite: true });
+    for (let index = 0; index < 2; index++) {
+      blink.to(eyes.map((eye) => eye.scale), { y: 0.08, duration: 0.08, overwrite: true })
+        .to(eyes.map((eye) => eye.scale), { y: faces.SLEEPY[0], duration: 0.14, overwrite: true });
+    }
+  }
+
   function scheduleBlink() {
     blinkTimer = gsap.delayedCall(expression === 'SLEEPY' ? 5 : 3 + Math.random() * 3, () => {
       blinkTimer = undefined;
-      if (expression !== 'SLEEPING' && expression !== 'YAWNING' && !reduced.matches) {
-        blink = gsap.timeline({ onComplete: () => { blink = undefined; } })
-          .to(eyes.map((part) => part.scale), { y: 0.08, duration: 0.08 })
-          .to(eyes.map((part) => part.scale), { y: faces[expression][0], duration: 0.14 });
-      }
+      if (!blink) blinkEyes();
       scheduleBlink();
     });
   }
@@ -80,6 +99,8 @@ export function createExpressions(penguin) {
   reduced.addEventListener('change', apply);
   return {
     setExpression,
+    blink: blinkEyes,
+    wakeBlink,
     updateGaze(horizontal, vertical, dt) {
       const active = !reduced.matches && expression !== 'SLEEPING' && expression !== 'YAWNING';
       for (let index = 0; index < pupils.length; index++) {

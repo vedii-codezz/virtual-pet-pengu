@@ -14,7 +14,7 @@ test('tap destinations, movement priority, and circular starts', () => {
   globalThis.window = { matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }) };
   globalThis.document = { createElement: () => ({
     width: 64, height: 64,
-    getContext: () => ({ fillRect() {}, beginPath() {}, moveTo() {}, bezierCurveTo() {}, fill() {},
+    getContext: () => ({ fillRect() {}, fillText() {}, beginPath() {}, moveTo() {}, bezierCurveTo() {}, fill() {},
       createRadialGradient: () => ({ addColorStop() {} }) })
   }) };
 
@@ -109,10 +109,16 @@ test('tap destinations, movement priority, and circular starts', () => {
     assert.equal(penguin.getObjectByName('leftFoot').position.y, 0);
     for (let i = 0; i < 4200 && roaming.state !== 'SLEEPING'; i++) roaming.update(0.05);
     assert.equal(roaming.state, 'SLEEPING');
+    assert.equal(roaming.activity, 'BLANKET_NAP');
+    assert.equal(penguin.getObjectByName('blanket').visible, true);
     roaming.noticeTap(200, 550);
     assert.equal(roaming.state, 'SLEEPING', 'empty tap does not wake Pengu');
+    roaming.clearPointer();
     roaming.wakeFromTap();
-    assert.equal(roaming.state, 'IDLE', 'direct wake interaction works');
+    assert.equal(roaming.state, 'WAKING', 'direct wake begins the standing sequence');
+    tick(60);
+    assert.equal(roaming.state, 'IDLE', 'Pengu completes the standing sequence');
+    assert.equal(penguin.getObjectByName('blanket').visible, false);
 
     viewport.width = 390;
     viewport.height = 844;
@@ -152,6 +158,74 @@ test('tap destinations, movement priority, and circular starts', () => {
     assert.equal(pets, 1, 'direct pet triggers the affectionate reaction');
     assert.equal(emptyTaps, 0, 'direct pet does not trigger empty-screen curiosity');
     assert.equal(roaming.state, 'SHY');
+
+    stopPetting();
+    stopPetting = undefined;
+    roaming.dispose();
+    roaming = undefined;
+    expressions.dispose();
+    expressions = undefined;
+
+    for (const [randomValue, kind] of [[0.05, 'READING'], [0.18, 'BALL_PLAY']]) {
+      Math.random = () => randomValue;
+      const activityPenguin = createPenguin();
+      const activityExpressions = createExpressions(activityPenguin);
+      const activityRoaming = createRoaming(activityPenguin, camera, canvas, {
+        onMessage() {}, onSleepChange() {}, expressions: activityExpressions
+      });
+      try {
+        for (let i = 0; i < 2700 && activityRoaming.activity !== kind; i++) activityRoaming.update(1 / 60);
+        assert.equal(activityRoaming.activity, kind, `${kind} starts autonomously`);
+        if (kind === 'READING') {
+          assert.equal(activityPenguin.getObjectByName('spectacles').visible, true);
+          assert.equal(activityPenguin.getObjectByName('newspaper').visible, true);
+          for (let i = 0; i < 1200 && activityRoaming.activity; i++) activityRoaming.update(1 / 60);
+          assert.equal(activityRoaming.activity, null, 'reading finishes naturally');
+          assert.equal(activityPenguin.getObjectByName('newspaper').visible, false);
+          assert.equal(activityPenguin.getObjectByName('spectacles').visible, false);
+          for (let i = 0; i < 2500 && activityRoaming.activity !== 'READING'; i++) activityRoaming.update(1 / 60);
+          assert.equal(activityRoaming.activity, 'READING');
+          activityRoaming.noticeTap(80, 550);
+          assert.equal(activityRoaming.state, 'RUNNING_TO_TAP');
+          assert.equal(activityPenguin.getObjectByName('newspaper').visible, false,
+            'tap running cleans up the reading props');
+        } else {
+          const ball = activityRoaming.stage.getObjectByName('toyBall');
+          assert.equal(ball.visible, true);
+          const firstX = ball.position.x;
+          for (let i = 0; i < 220; i++) activityRoaming.update(1 / 60);
+          assert(ball.position.x !== firstX || ball.rotation.z !== 0, 'ball rolls during play');
+          for (let i = 0; i < 1200 && activityRoaming.activity; i++) activityRoaming.update(1 / 60);
+          assert.equal(activityRoaming.activity, null, 'ball play finishes naturally');
+          assert.equal(ball.visible, false, 'ball is stored after play');
+          for (let i = 0; i < 2600 && activityRoaming.activity !== 'BALL_PLAY'; i++) activityRoaming.update(1 / 60);
+          assert.equal(activityRoaming.activity, 'BALL_PLAY');
+          activityRoaming.setShy(true);
+          assert.equal(ball.visible, false, 'petting cleans up the ball');
+        }
+      } finally {
+        activityRoaming.dispose();
+        activityExpressions.dispose();
+      }
+    }
+
+    Math.random = () => 0.95;
+    const plainPenguin = createPenguin();
+    const plainExpressions = createExpressions(plainPenguin);
+    const plainRoaming = createRoaming(plainPenguin, camera, canvas, {
+      onMessage() {}, onSleepChange() {}, expressions: plainExpressions
+    });
+    try {
+      plainRoaming.setReducedMotion(true);
+      for (let i = 0; i < 4200 && plainRoaming.state !== 'SLEEPING'; i++) plainRoaming.update(0.05);
+      assert.equal(plainRoaming.state, 'SLEEPING', 'original autonomous sleep remains available');
+      assert.equal(plainRoaming.activity, null);
+      plainRoaming.wakeFromTap();
+      assert.equal(plainRoaming.state, 'IDLE');
+    } finally {
+      plainRoaming.dispose();
+      plainExpressions.dispose();
+    }
   } finally {
     stopPetting?.();
     roaming?.dispose();

@@ -1,15 +1,24 @@
 import * as THREE from 'three';
 import gsap from 'gsap';
+import { createActivities } from './activities.js';
 
 const random = (min, max) => min + Math.random() * (max - min);
 const proximityStates = new Set(['IDLE', 'ROAMING', 'CURIOUS', 'FOLLOWING']);
 const phrases = {
-  ROAMING: ['tiny waddles!', 'pingu pingu~'],
-  IDLE: ['brrr... ♡', 'hehe...'],
-  CURIOUS: ['stay with me?', 'eep!'],
-  FOLLOWING: ['i like you!', 'tiny waddles!'],
-  SHY: ['hehe...', 'i like you!'],
-  SLEEPING: ['zzz...', 'so sleepy...']
+  ROAMING: ['tiny waddles!', 'wobble wobble', 'lookieee!', 'pingu pingu~'],
+  IDLE: ['brrr... ♡', 'hehehehe', 'huh?', 'pew pew!'],
+  CURIOUS: ['hmmmm?', 'wut dis?', 'ooooh!', 'tiny mystery!', 'whatcha doin?'],
+  FOLLOWING: ['catch meee!', 'i like you!', 'yippieee!'],
+  SHY: ['eep!', 'hehe~', 'no lookie!', 'awww', 'me shy!'],
+  SLEEPY: ['eepy...', 'five more mins...', 'so cozyyy'],
+  SLEEPING: ['zzzzz', 'honk shooo', 'so cozyyy'],
+  HAPPY: ['yayyy!!', 'weeeee~', 'yippieee!', 'zoomies!!'],
+  PLAYING: ['pew pew!', 'boing!', 'my ball!!', 'hehe gotcha!'],
+  READING: ['hmmm...', 'interesting...', 'big brain!', 'very serious.', 'huh?!'],
+  HAPPY_DANCE: ['yayyy!!', 'hehehehe', 'weeeee~'],
+  BALL_PLAY: ['my ball!!', 'pew pew!', 'boing!'],
+  BLANKET_NAP: ['eepy...', 'so cozyyy', 'yawnnn~'],
+  WAKING: ['yayyy!!', 'good morninggg~']
 };
 
 function createContactShadow() {
@@ -30,13 +39,22 @@ function createContactShadow() {
   return shadow;
 }
 
-export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChange, expressions }) {
+export function createRoaming(penguin, camera, canvas, { onMessage: showMessage, onSleepChange, expressions }) {
+  const stage = new THREE.Group();
+  stage.name = 'penguStage';
   const world = new THREE.Group();
   world.name = 'roamingWorld';
+  stage.add(world);
+  const propWorld = new THREE.Group();
+  propWorld.name = 'propWorld';
+  stage.add(propWorld);
   const walk = new THREE.Group();
   walk.name = 'walk';
   world.add(walk);
-  walk.add(penguin);
+  const activityPose = new THREE.Group();
+  activityPose.name = 'activityPose';
+  walk.add(activityPose);
+  activityPose.add(penguin);
   const shadow = createContactShadow();
   world.add(shadow);
 
@@ -61,6 +79,7 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
   const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const headRestY = head.position.y;
   const depthLimit = 0.55;
+  const limits = { xLimit: 0, depthLimit };
   let hasMouse = false;
   let tapHold = 0;
   let tapBubble = 0;
@@ -91,19 +110,32 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
   let stompTime = 0;
   let phase = 0;
   let messageWait = random(11, 19);
+  let speechCooldown = 0;
   let wiggleWait = random(6, 12);
   let happyWait = random(14, 25);
   let flipperTween;
   let curiosityCooldown = 0;
+  let activities;
+
+  function onMessage(message, urgent = false) {
+    if (speechCooldown > 0 && !urgent) return false;
+    const options = phrases[message];
+    const line = options ? options[Math.floor(Math.random() * options.length)] : message;
+    if (showMessage(line) === false) return false;
+    speechCooldown = urgent ? 3 : random(7, 12);
+    return true;
+  }
 
   function resize() {
     camera.updateMatrixWorld();
     const widthAt = (z) => 1 / Math.abs(new THREE.Vector3(1, 1.8, z).project(camera).x);
     xLimit = Math.max(0, Math.min(widthAt(-depthLimit), widthAt(depthLimit)) - modelRadius - 0.35);
+    limits.xLimit = xLimit;
     world.position.x = THREE.MathUtils.clamp(world.position.x, -xLimit, xLimit);
     destination.x = THREE.MathUtils.clamp(destination.x, -xLimit, xLimit);
     path.forEach((point) => { point.x = THREE.MathUtils.clamp(point.x, -xLimit, xLimit); });
     if (circle) finishMovement();
+    activities?.resize();
   }
 
   function settle() {
@@ -265,10 +297,10 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
     for (let index = 0; index < feet.length; index++) {
       feet[index].position.y = reduced ? 0 : Math.max(0, Math.sin(phase + index * Math.PI)) * (running ? 0.12 : 0.075);
     }
-    for (let index = 0; index < idleFlippers.length && !flipperTween; index++) {
+    for (let index = 0; index < idleFlippers.length && !flipperTween && !activities?.active; index++) {
       const flipper = idleFlippers[index];
       flipper.rotation.z = THREE.MathUtils.damp(flipper.rotation.z,
-        running && !reduced ? (index ? 1 : -1) * 0.22 : 0, 8, dt);
+        running && !reduced ? (index ? 1 : -1) * 0.22 + Math.sin(phase + index * Math.PI) * 0.045 : 0, 8, dt);
     }
   }
 
@@ -345,7 +377,8 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
   }
   function clearPointer() { hasMouse = false; hoverLook = 0; }
   function noticeTap(x, y) {
-    if (state === 'SLEEPING' || state === 'YAWNING' || state === 'SHY') return;
+    if (state === 'SLEEPING' || state === 'YAWNING' || state === 'WAKING' || state === 'SHY') return;
+    if (activities.active) activities.interrupt();
     pointer.set(x, y);
     const rect = canvas.getBoundingClientRect();
     if (y >= rect.top + rect.height * 0.65) {
@@ -370,17 +403,23 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
     state = 'CURIOUS';
     circle = null;
     settle();
+    stopFlipperWiggle();
     expressions.setExpression('CURIOUS', { force: true });
   }
   function wakeFromTap() {
     if (state !== 'SLEEPING') return;
     energy = Math.max(energy, 60);
+    if (activities.active === 'BLANKET_NAP') {
+      activities.wake();
+      return;
+    }
     wake();
   }
 
   function setShy(value) {
     if (value) {
-      if (state === 'SLEEPING') return;
+      if (state === 'SLEEPING' || state === 'WAKING') return;
+      if (activities.active) activities.interrupt();
       state = 'SHY';
       petCount++;
       tapHold = 0;
@@ -405,20 +444,30 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
 
   function update(delta) {
     const dt = Math.min(delta, 0.05);
+    speechCooldown = Math.max(0, speechCooldown - dt);
     if (state === 'SLEEPING') {
       energy = Math.min(100, energy + dt * 2.2);
-      if (energy >= 88) wake();
+      if (energy >= 88 && !activities.active) wake();
+      else if (energy >= 88 && activities.active === 'BLANKET_NAP') activities.wake();
     } else {
       energy = Math.max(0, energy - dt * 0.34);
-      if (energy <= 18 && state !== 'SHY' && state !== 'YAWNING') beginYawn();
+      if (energy <= 18 && state !== 'SHY' && state !== 'YAWNING' && !activities.active) {
+        if (Math.random() < 0.7) {
+          settle();
+          stopFlipperWiggle();
+          activities.start('BLANKET_NAP');
+        } else beginYawn();
+      }
     }
 
     messageWait -= dt;
     if (messageWait <= 0) {
-      const options = phrases[state] || phrases.IDLE;
-      onMessage(options[Math.floor(Math.random() * options.length)]);
+      onMessage(state in phrases ? state : 'IDLE');
       messageWait = random(13, 22);
     }
+    const hadActivity = Boolean(activities.active);
+    activities.update(dt);
+    if (hadActivity || activities.active) return;
     if (state === 'YAWNING') {
       yawnTime -= dt;
       if (yawnTime <= 0) enterSleep();
@@ -461,6 +510,7 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
       expressions.setExpression('CURIOUS', { force: true });
       wait = random(0.65, 1.1);
       settle();
+      stopFlipperWiggle();
       onMessage('eep!');
     }
 
@@ -522,6 +572,9 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
     }
 
     if (state === 'CURIOUS') {
+      idleFlippers[0].rotation.z = THREE.MathUtils.damp(idleFlippers[0].rotation.z,
+        reduced ? 0 : -0.16, 7, dt);
+      idleFlippers[1].rotation.z = THREE.MathUtils.damp(idleFlippers[1].rotation.z, 0, 7, dt);
       if (tapHold > 0) return;
       wait -= dt;
       if (wait <= 0) {
@@ -564,7 +617,12 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
         wiggleFlippers();
         wiggleWait = random(8, 15);
       }
-      if (wait <= 0 && !reduced) chooseDestination();
+      if (wait <= 0) {
+        if (!activities.maybeStart(energy)) {
+          if (reduced) wait = random(1.5, 3);
+          else chooseDestination();
+        }
+      }
       return;
     }
 
@@ -588,20 +646,46 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
     }
   }
 
+  activities = createActivities({
+    penguin, world, propWorld, pose: activityPose, expressions, onMessage, onSleepChange,
+    onState: (next) => {
+      if (next !== 'SLEEPING' && next !== 'WAKING') {
+        stopFlipperWiggle();
+        settle();
+      }
+      state = next;
+    },
+    onDone: (previous) => {
+      finishMovement();
+      if (previous === 'BLANKET_NAP') energy = Math.max(energy, 60);
+      if (previous !== 'HAPPY_DANCE') {
+        expressions.setExpression('HAPPY', { force: true });
+        happyTime = 1.1;
+      } else expressions.clearExpression();
+    },
+    move: (x, z, dt, running, activitySpeed) => {
+      speed = activitySpeed;
+      return moveToward(x, z, dt, running);
+    },
+    getLimits: () => limits,
+    getReduced: () => reduced
+  });
   resize();
   return {
-    world, resize, update, setShy, trackPointer, clearPointer, noticeTap, wakeFromTap,
+    stage, world, resize, update, setShy, trackPointer, clearPointer, noticeTap, wakeFromTap,
     get state() { return state; },
+    get activity() { return activities.active; },
     setReducedMotion(value) {
       reduced = Boolean(value);
       if (reduced) {
         settle();
         stopFlipperWiggle();
         curiosity.rotation.y = 0;
-        if (state !== 'SLEEPING' && state !== 'YAWNING' && state !== 'SHY') state = 'IDLE';
+        if (!activities.active && state !== 'SLEEPING' && state !== 'YAWNING' && state !== 'SHY') state = 'IDLE';
       }
     },
     dispose() {
+      activities.dispose();
       stopFlipperWiggle();
       settle();
       shadow.geometry.dispose();

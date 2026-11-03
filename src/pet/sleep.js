@@ -4,7 +4,7 @@ import gsap from 'gsap';
 export function createSleepVisual(penguin, camera, canvas, idle) {
   const z = document.createElement('span');
   z.className = 'pengu-z';
-  z.textContent = 'z';
+  z.textContent = 'zzzzz';
   z.setAttribute('aria-hidden', 'true');
   document.querySelector('#app').appendChild(z);
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');

@@ -55,7 +55,7 @@ const roaming = createRoaming(penguin, camera, renderer.domElement, {
   onSleepChange: (sleeping) => sleep.setSleeping(sleeping),
   expressions
 });
-scene.add(roaming.world);
+scene.add(roaming.stage);
 const stopPetting = enablePetting(penguin, camera, renderer, {
   onActiveChange: (active) => roaming.setShy(active),
   onPet: () => { speech.show('hehe... ♡', true); audio.purr(); },
@@ -63,7 +63,7 @@ const stopPetting = enablePetting(penguin, camera, renderer, {
   onPointerMove: (event) => roaming.trackPointer(event),
   onPointerLeave: () => roaming.clearPointer(),
   onDirectTap: () => { if (roaming.state === 'SLEEPING') roaming.wakeFromTap(); },
-  canPet: () => roaming.state !== 'SLEEPING'
+  canPet: () => roaming.state !== 'SLEEPING' && roaming.state !== 'WAKING'
 });
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const onMotionChange = () => roaming.setReducedMotion(reducedMotion.matches);

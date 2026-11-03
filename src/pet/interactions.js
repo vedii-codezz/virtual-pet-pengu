@@ -37,9 +37,10 @@ export function enablePetting(penguin, camera, renderer, {
   if (activeInteractions.has(penguin)) return activeInteractions.get(penguin);
 
   const reaction = penguin.getObjectByName('reaction');
+  const petPose = penguin.getObjectByName('petPose');
   const leftFlipper = penguin.getObjectByName('leftFlipper');
   const rightFlipper = penguin.getObjectByName('rightFlipper');
-  if (!reaction || !leftFlipper || !rightFlipper) return () => {};
+  if (!reaction || !petPose || !leftFlipper || !rightFlipper) return () => {};
 
   const canvas = renderer.domElement;
   const raycaster = new THREE.Raycaster();
@@ -47,8 +48,8 @@ export function enablePetting(penguin, camera, renderer, {
   const heart = createHeart();
   penguin.add(heart);
   const initial = {
-    y: reaction.position.y,
-    tilt: reaction.rotation.z,
+    y: petPose.position.y,
+    tilt: petPose.rotation.z,
     left: leftFlipper.rotation.z,
     right: rightFlipper.rotation.z,
     heartY: heart.position.y
@@ -68,8 +69,8 @@ export function enablePetting(penguin, camera, renderer, {
   }
 
   function resetPose() {
-    reaction.position.y = initial.y;
-    reaction.rotation.z = initial.tilt;
+    petPose.position.y = initial.y;
+    petPose.rotation.z = initial.tilt;
     leftFlipper.rotation.z = initial.left;
     rightFlipper.rotation.z = initial.right;
     heart.position.y = initial.heartY;
@@ -92,9 +93,9 @@ export function enablePetting(penguin, camera, renderer, {
     }
 
     timeline = gsap.timeline({ onComplete: resetPose });
-    timeline.to(reaction.position, { y: initial.y + 0.17, duration: 0.18, ease: 'power2.out' }, 0)
-      .to(reaction.position, { y: initial.y, duration: 0.32, ease: 'bounce.out' }, 0.18)
-      .to(reaction.rotation, { z: initial.tilt + 0.045, duration: 0.2, yoyo: true, repeat: 1 }, 0)
+    timeline.to(petPose.position, { y: initial.y + 0.17, duration: 0.18, ease: 'power2.out' }, 0)
+      .to(petPose.position, { y: initial.y, duration: 0.32, ease: 'bounce.out' }, 0.18)
+      .to(petPose.rotation, { z: initial.tilt + 0.045, duration: 0.2, yoyo: true, repeat: 1 }, 0)
       .to(leftFlipper.rotation, { z: initial.left - 0.3, duration: 0.13, yoyo: true, repeat: 3 }, 0)
       .to(rightFlipper.rotation, { z: initial.right + 0.3, duration: 0.13, yoyo: true, repeat: 3 }, 0)
       .to(heart.position, { y: initial.heartY + 0.55, duration: 0.7, ease: 'power1.out' }, 0)

@@ -25,11 +25,14 @@ export function createPenguin() {
   curiosity.name = 'curiosity';
   const sleep = new THREE.Group();
   sleep.name = 'sleep';
+  const petPose = new THREE.Group();
+  petPose.name = 'petPose';
   const reaction = new THREE.Group();
   reaction.name = 'reaction';
   penguin.add(curiosity);
   curiosity.add(sleep);
-  sleep.add(reaction);
+  sleep.add(petPose);
+  petPose.add(reaction);
 
   const body = createVoxelEllipsoid([1.35, 1.07, 0.96], 0.19, (x, y, z) =>
     z > 0.38 && Math.abs(x) < 1.02 && y > -0.82 && y < 0.78 ? 'white' : 'blue', materials);
