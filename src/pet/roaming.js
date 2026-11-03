@@ -162,11 +162,12 @@ export function createRoaming(penguin, camera, canvas, { onMessage: showMessage,
     currentSpeed = THREE.MathUtils.damp(currentSpeed, 0, 7, dt);
     stopWobble = Math.max(0, stopWobble - dt);
     arrivalBounce = Math.max(0, arrivalBounce - dt);
-    walk.rotation.z = THREE.MathUtils.damp(walk.rotation.z,
-      reduced ? 0 : Math.sin(stopWobble * 24) * stopWobble * 0.045, 8, dt);
+    walk.rotation.z = THREE.MathUtils.damp(walk.rotation.z, 0, 9, dt);
     walk.rotation.x = THREE.MathUtils.damp(walk.rotation.x, 0, 8, dt);
-    walk.scale.y = reduced ? 1 : 1 + Math.sin((0.32 - arrivalBounce) / 0.32 * Math.PI) * arrivalBounce * 0.075;
-    head.position.y = THREE.MathUtils.damp(head.position.y, headRestY, 9, dt);
+    walk.scale.y = THREE.MathUtils.damp(walk.scale.y, 1, 9, dt);
+    const bounce = reduced || arrivalBounce <= 0 ? 0
+      : Math.sin((0.32 - arrivalBounce) / 0.32 * Math.PI) * 0.025;
+    head.position.y = THREE.MathUtils.damp(head.position.y, headRestY + bounce, 9, dt);
     stompTime = Math.max(0, stompTime - dt);
     for (let index = 0; index < feet.length; index++) {
       const target = index === 0 && stompTime > 0
@@ -292,7 +293,15 @@ export function createRoaming(penguin, camera, canvas, { onMessage: showMessage,
   }
 
   function turnToward(dx, dz, dt, running) {
-    const facing = Math.atan2(dx, dz);
+    const cameraAngle = Math.atan2(camera.position.x - world.position.x,
+      camera.position.z - world.position.z);
+    const sideways = dx * Math.cos(cameraAngle) - dz * Math.sin(cameraAngle);
+    const forward = dx * Math.sin(cameraAngle) + dz * Math.cos(cameraAngle);
+    // Keep both forward and retreating paths readable from the camera. Folding the
+    // rear hemisphere avoids a sudden +45° to -45° flip at the back-facing seam.
+    const offset = THREE.MathUtils.clamp(Math.atan2(sideways, Math.abs(forward)),
+      -Math.PI / 4, Math.PI / 4);
+    const facing = cameraAngle + offset;
     const angle = Math.atan2(Math.sin(facing - world.rotation.y), Math.cos(facing - world.rotation.y));
     world.rotation.y += angle * (1 - Math.exp(-(running ? 7.5 : 4.8) * dt));
   }
@@ -300,8 +309,8 @@ export function createRoaming(penguin, camera, canvas, { onMessage: showMessage,
   function animateSteps(dt, running) {
     const pace = reduced ? 0 : running ? 16 : 9.1;
     phase += dt * pace * Math.max(0.4, currentSpeed / Math.max(speed, 0.1));
-    walk.rotation.z = reduced ? 0 : Math.sin(phase) * (running ? 0.065 : 0.032) + Math.sin(stumbleTime * 18) * 0.025;
-    walk.rotation.x = THREE.MathUtils.damp(walk.rotation.x, reduced ? 0 : running ? 0.075 : 0.01, 7, dt);
+    walk.rotation.z = THREE.MathUtils.damp(walk.rotation.z, 0, 12, dt);
+    walk.rotation.x = THREE.MathUtils.damp(walk.rotation.x, 0, 12, dt);
     walk.scale.y = THREE.MathUtils.damp(walk.scale.y, 1, 9, dt);
     head.position.y = headRestY + (running && !reduced ? Math.sin(phase * 0.5) * 0.025 : 0);
     for (let index = 0; index < feet.length; index++) {
@@ -571,7 +580,7 @@ export function createRoaming(penguin, camera, canvas, { onMessage: showMessage,
       if (runAnticipation > 0) {
         runAnticipation = Math.max(0, runAnticipation - dt);
         walk.scale.y = THREE.MathUtils.damp(walk.scale.y, 0.97, 18, dt);
-        walk.rotation.x = THREE.MathUtils.damp(walk.rotation.x, 0.025, 12, dt);
+        walk.rotation.x = THREE.MathUtils.damp(walk.rotation.x, 0, 12, dt);
         return;
       }
       runTime += dt;
@@ -632,7 +641,12 @@ export function createRoaming(penguin, camera, canvas, { onMessage: showMessage,
         happyWait = random(16, 28);
       }
       phase += dt;
-      world.rotation.y = THREE.MathUtils.damp(world.rotation.y, Math.sin(phase) * 0.12, 2, dt);
+      const cameraAngle = Math.atan2(camera.position.x - world.position.x,
+        camera.position.z - world.position.z);
+      const idleFacing = cameraAngle + Math.sin(phase) * 0.12;
+      const idleAngle = Math.atan2(Math.sin(idleFacing - world.rotation.y),
+        Math.cos(idleFacing - world.rotation.y));
+      world.rotation.y += idleAngle * (1 - Math.exp(-2 * dt));
       wiggleWait -= dt;
       if (wiggleWait <= 0) {
         wiggleFlippers();

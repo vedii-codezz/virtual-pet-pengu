@@ -49,12 +49,23 @@ test('tap destinations, movement priority, and circular starts', () => {
       clientY: (1 - nearby.y) * 300 });
     tick(50);
     assert.equal(roaming.state, 'FOLLOWING', 'nearby cursor can start following');
+    const walk = roaming.world.getObjectByName('walk');
+    assert(Math.abs(walk.rotation.x) < 1e-6 && Math.abs(walk.rotation.z) < 1e-6,
+      'following keeps the body upright');
 
     roaming.noticeTap(80, 550);
     assert.equal(roaming.state, 'RUNNING_TO_TAP');
     assert.equal(expressions.getCurrentExpression(), 'CURIOUS', 'tap run overrides following');
     tick(60);
     assert(roaming.world.position.x < -0.1, 'lower-left tap moves left');
+    assert(Math.abs(walk.rotation.x) < 1e-6 && Math.abs(walk.rotation.z) < 1e-6,
+      'running uses footsteps without tilting the body');
+    const viewAngle = () => Math.atan2(camera.position.x - roaming.world.position.x,
+      camera.position.z - roaming.world.position.z);
+    const facingOffset = () => Math.atan2(Math.sin(roaming.world.rotation.y - viewAngle()),
+      Math.cos(roaming.world.rotation.y - viewAngle()));
+    assert(facingOffset() < 0 && facingOffset() >= -Math.PI / 4 - 0.02,
+      'leftward running keeps a readable left three-quarter view');
     const leftX = roaming.world.position.x;
 
     const projected = new THREE.Vector3(0, 1.8, 0);
@@ -68,6 +79,8 @@ test('tap destinations, movement priority, and circular starts', () => {
     roaming.noticeTap(720, 550);
     tick(100);
     assert(roaming.world.position.x > leftX + 0.4, 'new tap smoothly replaces the run destination');
+    assert(facingOffset() > 0 && facingOffset() <= Math.PI / 4 + 0.02,
+      'rightward running keeps a readable right three-quarter view');
 
     roaming.noticeTap(400, 100);
     assert.equal(roaming.state, 'CURIOUS');
@@ -87,6 +100,8 @@ test('tap destinations, movement priority, and circular starts', () => {
     roaming.trackPointer({ pointerType: 'mouse', clientX: 400, clientY: 500 });
     tick(10);
     assert.equal(roaming.state, 'CIRCULAR_WADDLE', 'cursor proximity does not interrupt a circle');
+    assert(Math.abs(walk.rotation.x) < 1e-6 && Math.abs(walk.rotation.z) < 1e-6,
+      'circular walking stays upright');
 
     roaming.clearPointer();
     Math.random = () => 0.05; // Select a short scurry next.
@@ -104,7 +119,6 @@ test('tap destinations, movement priority, and circular starts', () => {
     assert.equal(roaming.state, 'IDLE');
     roaming.noticeTap(720, 550);
     tick(5);
-    const walk = roaming.world.getObjectByName('walk');
     assert.equal(walk.rotation.z, 0, 'reduced motion suppresses running wobble');
     assert.equal(penguin.getObjectByName('leftFoot').position.y, 0);
     for (let i = 0; i < 4200 && roaming.state !== 'SLEEPING'; i++) roaming.update(0.05);

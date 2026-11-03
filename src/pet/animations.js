@@ -43,18 +43,8 @@ export function animatePenguin(penguin) {
       })];
       return;
     }
-    tweens = [
-      gsap.to(penguin.scale, {
-        y: initial.scaleY * 1.025, duration: 1.5, ease: 'sine.inOut', yoyo: true, repeat: -1
-      }),
-      gsap.fromTo(penguin.rotation,
-        { z: initial.rotationZ - 0.025 },
-        { z: initial.rotationZ + 0.025, duration: 2, ease: 'sine.inOut', yoyo: true, repeat: -1 }
-      ),
-      gsap.to(penguin.position, {
-        y: initial.positionY + 0.035, duration: 1.8, ease: 'sine.inOut', yoyo: true, repeat: -1
-      })
-    ];
+    // Keep the character root planted and upright. Locomotion animates feet,
+    // head and flippers; activityPose owns deliberate whole-body poses.
   }
 
   updateMotion();
