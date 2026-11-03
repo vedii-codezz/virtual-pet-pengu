@@ -31,21 +31,20 @@ export function createPenguin() {
   curiosity.add(sleep);
   sleep.add(reaction);
 
-  const body = createVoxelEllipsoid([1.23, 1.14, 0.91], 0.19, (x, y, z) =>
-    z > 0.42 && Math.abs(x) < 0.92 && y > -0.88 && y < 0.82 ? 'white' : 'blue', materials);
-  body.position.y = 1.23;
+  const body = createVoxelEllipsoid([1.35, 1.07, 0.96], 0.19, (x, y, z) =>
+    z > 0.38 && Math.abs(x) < 1.02 && y > -0.82 && y < 0.78 ? 'white' : 'blue', materials);
+  body.position.y = 1.16;
   reaction.add(body);
 
   const head = new THREE.Group();
   head.name = 'head';
-  head.position.y = 2.43;
   const headLook = new THREE.Group();
   headLook.name = 'headLook';
-  headLook.position.y = 2.43;
+  headLook.position.y = 2.35;
   reaction.add(headLook);
   head.position.y = 0;
   headLook.add(head);
-  const headShape = createVoxelEllipsoid([1.1, 0.94, 0.88], 0.18, (x, y, z) => {
+  const headShape = createVoxelEllipsoid([1.14, 0.94, 0.9], 0.18, (x, y, z) => {
     if (z > 0.49 && Math.abs(x) < 0.78 && y > -0.58 && y < 0.56) return 'white';
     return y > 0.72 ? 'dark' : 'blue';
   }, materials);
@@ -57,6 +56,9 @@ export function createPenguin() {
     eye.position.set(side * 0.46, 0.09, 0.94);
     box(eye, 'brown', [0.34, 0.43, 0.16], [0, 0, 0]);
     box(eye, 'highlight', [0.11, 0.11, 0.05], [-0.07, 0.09, 0.11]);
+    const pupil = box(eye, 'dark', [0.1, 0.13, 0.05], [0.04, -0.04, 0.12]);
+    pupil.name = side < 0 ? 'leftPupil' : 'rightPupil';
+    box(eye, 'highlight', [0.055, 0.055, 0.04], [0.1, 0.13, 0.13]);
     head.add(eye);
 
     const smileEye = new THREE.Group();
@@ -73,13 +75,13 @@ export function createPenguin() {
     const brow = box(head, 'dark', [0.41, 0.08, 0.12], [side * 0.46, 0.48, 1.05]);
     brow.name = side < 0 ? 'leftBrow' : 'rightBrow';
 
-    const cheek = box(head, 'pink', [0.27, 0.16, 0.12], [side * 0.76, -0.36, 0.77]);
+    const cheek = box(head, 'pink', [0.27, 0.16, 0.12], [side * 0.8, -0.36, 0.79]);
     cheek.name = side < 0 ? 'leftCheek' : 'rightCheek';
     cheek.material = cheek.material.clone();
 
     const idleFlipper = new THREE.Group();
     idleFlipper.name = side < 0 ? 'leftIdleFlipper' : 'rightIdleFlipper';
-    idleFlipper.position.set(side * 1.13, 1.62, 0);
+    idleFlipper.position.set(side * 1.2, 1.55, 0);
     reaction.add(idleFlipper);
     const flipper = new THREE.Group();
     flipper.name = side < 0 ? 'leftFlipper' : 'rightFlipper';
@@ -91,7 +93,7 @@ export function createPenguin() {
 
     const foot = new THREE.Group();
     foot.name = side < 0 ? 'leftFoot' : 'rightFoot';
-    foot.position.set(side * 0.57, 0, 0.37);
+    foot.position.set(side * 0.62, 0, 0.39);
     reaction.add(foot);
     const footShape = createVoxelEllipsoid([0.28, 0.13, 0.38], 0.13,
       (x, y, z) => z > 0.15 ? 'orange' : 'yellow', materials);
@@ -102,9 +104,9 @@ export function createPenguin() {
   const mouth = box(head, 'brown', [0.32, 0.07, 0.08], [0, -0.46, 1.24]);
   mouth.name = 'mouth';
   mouth.visible = false;
-  const upperBeak = box(head, 'yellow', [0.52, 0.2, 0.37], [0, -0.32, 1.04]);
+  const upperBeak = box(head, 'yellow', [0.52, 0.2, 0.37], [0, -0.32, 1.07]);
   upperBeak.name = 'upperBeak';
-  const lowerBeak = box(head, 'orange', [0.37, 0.12, 0.29], [0, -0.48, 1.03]);
+  const lowerBeak = box(head, 'orange', [0.37, 0.12, 0.29], [0, -0.48, 1.06]);
   lowerBeak.name = 'lowerBeak';
 
   return penguin;

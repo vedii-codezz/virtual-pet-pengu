@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import gsap from 'gsap';
 
 const random = (min, max) => min + Math.random() * (max - min);
+const proximityStates = new Set(['IDLE', 'ROAMING', 'CURIOUS', 'FOLLOWING']);
 const phrases = {
   ROAMING: ['tiny waddles!', 'pingu pingu~'],
   IDLE: ['brrr... ♡', 'hehe...'],
@@ -52,6 +53,11 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
   const raycaster = new THREE.Raycaster();
   const frontPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
   const pointerWorld = new THREE.Vector3();
+  const tapWorld = new THREE.Vector3();
+  const pointerNdc = new THREE.Vector2();
+  const headWorld = new THREE.Vector3();
+  const lookPoint = new THREE.Vector3();
+  const lookPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
   const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const headRestY = head.position.y;
   const depthLimit = 0.55;
@@ -71,9 +77,18 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
   let currentSpeed = 0;
   let path = [];
   let pathIndex = 0;
+  let circle = null;
   let stumbleTime = 0;
   let scurryCooldown = 0;
   let runTime = 0;
+  let runAnticipation = 0;
+  let stopWobble = 0;
+  let arrivalBounce = 0;
+  let followX = 0;
+  let idleTiltWait = random(9, 16);
+  let idleTiltTime = 0;
+  let idleTiltDirection = 1;
+  let stompTime = 0;
   let phase = 0;
   let messageWait = random(11, 19);
   let wiggleWait = random(6, 12);
@@ -88,15 +103,46 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
     world.position.x = THREE.MathUtils.clamp(world.position.x, -xLimit, xLimit);
     destination.x = THREE.MathUtils.clamp(destination.x, -xLimit, xLimit);
     path.forEach((point) => { point.x = THREE.MathUtils.clamp(point.x, -xLimit, xLimit); });
+    if (circle) finishMovement();
   }
 
   function settle() {
     currentSpeed = 0;
     walk.rotation.z = 0;
     walk.rotation.x = 0;
+    walk.scale.y = 1;
     head.position.y = headRestY;
     feet.forEach((foot) => { foot.position.y = 0; });
     idleFlippers.forEach((flipper) => { flipper.rotation.z = 0; });
+  }
+
+  function relaxPose(dt) {
+    currentSpeed = THREE.MathUtils.damp(currentSpeed, 0, 7, dt);
+    stopWobble = Math.max(0, stopWobble - dt);
+    arrivalBounce = Math.max(0, arrivalBounce - dt);
+    walk.rotation.z = THREE.MathUtils.damp(walk.rotation.z,
+      reduced ? 0 : Math.sin(stopWobble * 24) * stopWobble * 0.045, 8, dt);
+    walk.rotation.x = THREE.MathUtils.damp(walk.rotation.x, 0, 8, dt);
+    walk.scale.y = reduced ? 1 : 1 + Math.sin((0.32 - arrivalBounce) / 0.32 * Math.PI) * arrivalBounce * 0.075;
+    head.position.y = THREE.MathUtils.damp(head.position.y, headRestY, 9, dt);
+    stompTime = Math.max(0, stompTime - dt);
+    for (let index = 0; index < feet.length; index++) {
+      const target = index === 0 && stompTime > 0
+        ? Math.sin((0.25 - stompTime) / 0.25 * Math.PI) * 0.08 : 0;
+      feet[index].position.y = THREE.MathUtils.damp(feet[index].position.y, target, 14, dt);
+    }
+    if (!flipperTween) for (const flipper of idleFlippers) {
+      flipper.rotation.z = THREE.MathUtils.damp(flipper.rotation.z, 0, 6, dt);
+    }
+  }
+
+  function finishMovement() {
+    state = 'IDLE';
+    wait = random(0.5, 1.4);
+    stopWobble = reduced ? 0 : 0.42;
+    path = [];
+    pathIndex = 0;
+    circle = null;
   }
 
   function stopFlipperWiggle() {
@@ -148,6 +194,7 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
     stopFlipperWiggle();
     path = [];
     pathIndex = 0;
+    circle = null;
     const start = new THREE.Vector2(world.position.x, world.position.z);
     const next = new THREE.Vector2(random(-xLimit, xLimit), random(-depthLimit, depthLimit));
     const choice = Math.random();
@@ -161,18 +208,22 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
       return;
     }
     speed = random(0.82, 1.34);
-    if (choice < 0.22 && xLimit > 0.65) {
+    const circleSide = start.x > 0 ? -1 : 1;
+    const availableX = circleSide > 0 ? xLimit - start.x : xLimit + start.x;
+    const radiusX = Math.min(0.62, availableX / 2 - 0.025);
+    const radiusZ = Math.min(0.27, depthLimit - Math.abs(start.y) - 0.025);
+    if (choice < 0.22 && radiusX > 0.16 && radiusZ > 0.12) {
       state = 'CIRCULAR_WADDLE';
-      const rx = Math.min(0.62, xLimit * 0.42);
-      const rz = 0.27;
-      const cx = THREE.MathUtils.clamp(start.x - rx, -xLimit + rx, xLimit - rx);
-      const cz = THREE.MathUtils.clamp(start.y, -depthLimit + rz, depthLimit - rz);
-      const total = Math.random() < 0.5 ? 14 : 25;
-      const direction = Math.random() < 0.5 ? -1 : 1;
-      for (let i = 1; i <= total; i++) {
-        const angle = direction * i * Math.PI / 12;
-        path.push(new THREE.Vector2(cx + Math.cos(angle) * rx, cz + Math.sin(angle) * rz));
-      }
+      circle = {
+        x: start.x + circleSide * radiusX,
+        z: start.y,
+        rx: radiusX,
+        rz: radiusZ,
+        startAngle: circleSide > 0 ? Math.PI : 0,
+        direction: Math.random() < 0.5 ? -1 : 1,
+        progress: 0,
+        total: Math.random() < 0.5 ? Math.PI * 1.35 : Math.PI * 2
+      };
       if (Math.random() < 0.3) onMessage('hehe~');
     } else if (choice < 0.35) {
       state = 'ROAMING';
@@ -198,7 +249,30 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
     }
   }
 
-  function moveToward(x, z, dt, { running = false, slow = true } = {}) {
+  function turnToward(dx, dz, dt, running) {
+    const facing = Math.atan2(dx, dz);
+    const angle = Math.atan2(Math.sin(facing - world.rotation.y), Math.cos(facing - world.rotation.y));
+    world.rotation.y += angle * (1 - Math.exp(-(running ? 7.5 : 4.8) * dt));
+  }
+
+  function animateSteps(dt, running) {
+    const pace = reduced ? 0 : running ? 16 : 9.1;
+    phase += dt * pace * Math.max(0.4, currentSpeed / Math.max(speed, 0.1));
+    walk.rotation.z = reduced ? 0 : Math.sin(phase) * (running ? 0.065 : 0.032) + Math.sin(stumbleTime * 18) * 0.025;
+    walk.rotation.x = THREE.MathUtils.damp(walk.rotation.x, reduced ? 0 : running ? 0.075 : 0.01, 7, dt);
+    walk.scale.y = THREE.MathUtils.damp(walk.scale.y, 1, 9, dt);
+    head.position.y = headRestY + (running && !reduced ? Math.sin(phase * 0.5) * 0.025 : 0);
+    for (let index = 0; index < feet.length; index++) {
+      feet[index].position.y = reduced ? 0 : Math.max(0, Math.sin(phase + index * Math.PI)) * (running ? 0.12 : 0.075);
+    }
+    for (let index = 0; index < idleFlippers.length && !flipperTween; index++) {
+      const flipper = idleFlippers[index];
+      flipper.rotation.z = THREE.MathUtils.damp(flipper.rotation.z,
+        running && !reduced ? (index ? 1 : -1) * 0.22 : 0, 8, dt);
+    }
+  }
+
+  function moveToward(x, z, dt, running = false, slow = true) {
     const dx = x - world.position.x;
     const dz = z - world.position.z;
     const distance = Math.hypot(dx, dz);
@@ -208,20 +282,26 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
     const step = Math.min(distance, currentSpeed * dt * (slow ? Math.min(1, distance / 0.36) : 1));
     world.position.x = THREE.MathUtils.clamp(world.position.x + dx / distance * step, -xLimit, xLimit);
     world.position.z = THREE.MathUtils.clamp(world.position.z + dz / distance * step, -depthLimit, depthLimit);
-    const facing = Math.atan2(dx, dz);
-    const angle = Math.atan2(Math.sin(facing - world.rotation.y), Math.cos(facing - world.rotation.y));
-    world.rotation.y += angle * (1 - Math.exp(-(running ? 7.5 : 4.8) * dt));
-    phase += dt * (running ? 16 : 9.1) * Math.max(0.4, currentSpeed / desiredSpeed);
-    walk.rotation.z = reduced ? 0 : Math.sin(phase) * (running ? 0.065 : 0.032) + Math.sin(stumbleTime * 18) * 0.025;
-    walk.rotation.x = THREE.MathUtils.damp(walk.rotation.x, reduced ? 0 : running ? 0.075 : 0.01, 7, dt);
-    head.position.y = headRestY + (running && !reduced ? Math.sin(phase * 0.5) * 0.025 : 0);
-    feet.forEach((foot, index) => {
-      foot.position.y = reduced ? 0 : Math.max(0, Math.sin(phase + index * Math.PI)) * (running ? 0.12 : 0.075);
-    });
-    if (running) idleFlippers.forEach((flipper, index) => {
-      flipper.rotation.z = THREE.MathUtils.damp(flipper.rotation.z, (index ? 1 : -1) * 0.22, 8, dt);
-    });
+    turnToward(dx, dz, dt, running);
+    animateSteps(dt, running);
     return false;
+  }
+
+  function updateCircle(dt) {
+    const { rx, rz, startAngle, direction, total } = circle;
+    const angle = startAngle + direction * circle.progress;
+    const tangentLength = Math.max(0.1, Math.hypot(rx * Math.sin(angle), rz * Math.cos(angle)));
+    const remaining = total - circle.progress;
+    const desired = reduced ? Math.min(speed, 0.85) : speed;
+    currentSpeed = THREE.MathUtils.damp(currentSpeed, desired, 7, dt);
+    const travel = currentSpeed * Math.min(1, remaining * tangentLength / 0.35) * dt;
+    circle.progress = Math.min(total, circle.progress + travel / tangentLength);
+    const nextAngle = startAngle + direction * circle.progress;
+    world.position.x = THREE.MathUtils.clamp(circle.x + rx * Math.cos(nextAngle), -xLimit, xLimit);
+    world.position.z = THREE.MathUtils.clamp(circle.z + rz * Math.sin(nextAngle), -depthLimit, depthLimit);
+    turnToward(-direction * rx * Math.sin(nextAngle), direction * rz * Math.cos(nextAngle), dt, false);
+    animateSteps(dt, false);
+    if (circle.progress >= total - 1e-4) finishMovement();
   }
 
   function pointerDistance() {
@@ -237,24 +317,23 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
 
   function pointerTargetX() {
     const rect = canvas.getBoundingClientRect();
-    const ndc = new THREE.Vector2(
+    pointerNdc.set(
       (pointer.x - rect.left) / rect.width * 2 - 1,
       -(pointer.y - rect.top) / rect.height * 2 + 1
     );
-    raycaster.setFromCamera(ndc, camera);
+    raycaster.setFromCamera(pointerNdc, camera);
     if (!raycaster.ray.intersectPlane(frontPlane, pointerWorld)) return world.position.x;
     return THREE.MathUtils.clamp(pointerWorld.x, -xLimit, xLimit);
   }
 
   function groundTarget(x, y) {
     const rect = canvas.getBoundingClientRect();
-    const ndc = new THREE.Vector2((x - rect.left) / rect.width * 2 - 1,
+    pointerNdc.set((x - rect.left) / rect.width * 2 - 1,
       -(y - rect.top) / rect.height * 2 + 1);
-    raycaster.setFromCamera(ndc, camera);
-    const hit = raycaster.ray.intersectPlane(groundPlane, pointerWorld);
+    raycaster.setFromCamera(pointerNdc, camera);
+    const hit = raycaster.ray.intersectPlane(groundPlane, tapWorld);
     if (!hit) return destination.set(world.position.x, world.position.z);
-    const frontHit = raycaster.ray.intersectPlane(frontPlane, new THREE.Vector3());
-    return destination.set(THREE.MathUtils.clamp(frontHit?.x ?? hit.x, -xLimit, xLimit),
+    return destination.set(THREE.MathUtils.clamp(hit.x, -xLimit, xLimit),
       THREE.MathUtils.clamp(hit.z, -depthLimit, depthLimit));
   }
 
@@ -271,11 +350,15 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
     const rect = canvas.getBoundingClientRect();
     if (y >= rect.top + rect.height * 0.65) {
       groundTarget(x, y);
-      if (state !== 'RUNNING_TO_TAP') currentSpeed = Math.min(currentSpeed, 0.5);
+      if (state !== 'RUNNING_TO_TAP') {
+        currentSpeed = Math.min(currentSpeed, 0.5);
+        runAnticipation = reduced ? 0 : 0.13;
+      }
       state = 'RUNNING_TO_TAP';
       runTime = 0;
       tapHold = 0;
       path = [];
+      circle = null;
       speed = 2.35;
       stopFlipperWiggle();
       expressions.setExpression('CURIOUS', { force: true });
@@ -285,10 +368,15 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
     tapHold = reduced ? 1.5 : 1.5 + Math.random();
     tapBubble = Math.random() < 0.4 ? 0.5 : 0;
     state = 'CURIOUS';
+    circle = null;
     settle();
     expressions.setExpression('CURIOUS', { force: true });
   }
-  function wakeFromTap() { if (state === 'SLEEPING') wake(); }
+  function wakeFromTap() {
+    if (state !== 'SLEEPING') return;
+    energy = Math.max(energy, 60);
+    wake();
+  }
 
   function setShy(value) {
     if (value) {
@@ -307,8 +395,7 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
         petCount = 0;
         expressions.setExpression('ANGRY', { force: true, duration: 0.85 });
         onMessage('hmph!');
-        feet[0].position.y = 0.08;
-        gsap.to(feet[0].position, { y: 0, duration: 0.22, overwrite: true });
+        stompTime = reduced ? 0 : 0.25;
       } else {
         expressions.setExpression('HAPPY', { force: true });
         happyTime = 0.9;
@@ -368,8 +455,8 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
       wait = random(0.8, 1.6);
       curiosityCooldown = 2;
       settle();
-    } else if (distance < 165 && curiosityCooldown === 0 && state !== 'CURIOUS' &&
-      state !== 'FOLLOWING' && state !== 'RUNNING_TO_TAP') {
+    } else if (distance < 165 && curiosityCooldown === 0 &&
+      proximityStates.has(state) && state !== 'CURIOUS' && state !== 'FOLLOWING') {
       state = 'CURIOUS';
       expressions.setExpression('CURIOUS', { force: true });
       wait = random(0.65, 1.1);
@@ -379,14 +466,26 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
 
     const looking = state === 'CURIOUS' || state === 'FOLLOWING' ||
       state === 'RUNNING_TO_TAP' || tapHold > 0 || hoverLook > 0;
+    if (state === 'IDLE' && !looking && !reduced) {
+      idleTiltWait -= dt;
+      if (idleTiltWait <= 0 && expressions.getCurrentExpression() === 'NEUTRAL') {
+        idleTiltTime = 0.8;
+        idleTiltDirection = Math.random() < 0.5 ? -1 : 1;
+        idleTiltWait = random(10, 18);
+        expressions.setExpression('CURIOUS', { duration: 0.8 });
+      }
+    } else idleTiltTime = 0;
+    idleTiltTime = Math.max(0, idleTiltTime - dt);
+    const idleTilt = idleTiltTime > 0
+      ? idleTiltDirection * 0.065 * Math.sin((0.8 - idleTiltTime) / 0.8 * Math.PI) : 0;
     const rect = canvas.getBoundingClientRect();
-    const ndc = new THREE.Vector2((pointer.x - rect.left) / rect.width * 2 - 1,
+    pointerNdc.set((pointer.x - rect.left) / rect.width * 2 - 1,
       -(pointer.y - rect.top) / rect.height * 2 + 1);
-    raycaster.setFromCamera(ndc, camera);
-    const headWorld = head.getWorldPosition(new THREE.Vector3());
-    const lookPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -headWorld.z);
-    const lookPoint = raycaster.ray.intersectPlane(lookPlane, new THREE.Vector3());
-    const localLook = lookPoint ? head.parent.worldToLocal(lookPoint) : null;
+    raycaster.setFromCamera(pointerNdc, camera);
+    head.getWorldPosition(headWorld);
+    lookPlane.constant = -headWorld.z;
+    const localLook = raycaster.ray.intersectPlane(lookPlane, lookPoint)
+      ? head.parent.worldToLocal(lookPoint) : null;
     const dx = localLook ? localLook.x - head.position.x : 0;
     const dy = localLook ? localLook.y - head.position.y : 0;
     const headYaw = looking ? THREE.MathUtils.clamp(Math.atan2(dx, 5), -0.25, 0.25) : 0;
@@ -394,19 +493,26 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
     head.rotation.y = THREE.MathUtils.damp(head.rotation.y, headYaw, 11, dt);
     head.rotation.x = THREE.MathUtils.damp(head.rotation.x, headPitch, 11, dt);
     head.rotation.z = THREE.MathUtils.damp(head.rotation.z,
-      looking ? THREE.MathUtils.clamp(-dx * 0.025, -0.09, 0.09) : 0, 7, dt);
+      looking ? THREE.MathUtils.clamp(-dx * 0.025, -0.09, 0.09) : idleTilt, 7, dt);
     curiosity.rotation.y = THREE.MathUtils.damp(curiosity.rotation.y, headYaw * 0.35, 6, dt);
+    expressions.updateGaze(headYaw / 0.25, -headPitch / 0.16, dt);
 
     if (state === 'RUNNING_TO_TAP') {
+      if (runAnticipation > 0) {
+        runAnticipation = Math.max(0, runAnticipation - dt);
+        walk.scale.y = THREE.MathUtils.damp(walk.scale.y, 0.97, 18, dt);
+        walk.rotation.x = THREE.MathUtils.damp(walk.rotation.x, 0.025, 12, dt);
+        return;
+      }
       runTime += dt;
       if (runTime > 0.4 && expressions.getCurrentExpression() === 'CURIOUS') {
         expressions.setExpression('HAPPY', { force: true });
       }
-      if (moveToward(destination.x, destination.y, dt, { running: true })) {
-        settle();
-        state = 'IDLE';
+      if (moveToward(destination.x, destination.y, dt, true)) {
+        finishMovement();
         hoverLook = 0;
         wait = random(0.8, 1.3);
+        arrivalBounce = reduced ? 0 : 0.32;
         curiosityCooldown = 1.5;
         expressions.setExpression('HAPPY', { force: true });
         happyTime = 1.1;
@@ -421,7 +527,8 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
       if (wait <= 0) {
         if (distance < 165 && Math.random() < 0.7 && !reduced) {
           state = 'FOLLOWING';
-          speed = random(0.5, 0.8);
+          speed = random(0.8, 1.15);
+          followX = world.position.x;
         } else {
           state = 'IDLE';
           expressions.clearExpression();
@@ -434,8 +541,8 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
 
     if (state === 'FOLLOWING') {
       if (reduced) { state = 'IDLE'; expressions.clearExpression(); return; }
-      const x = pointerTargetX();
-      if (moveToward(x, world.position.z, dt)) {
+      followX = THREE.MathUtils.damp(followX, pointerTargetX(), 7, dt);
+      if (moveToward(followX, world.position.z, dt)) {
         state = 'CURIOUS';
         wait = random(0.7, 1.2);
       }
@@ -443,6 +550,7 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
     }
 
     if (state === 'IDLE') {
+      relaxPose(dt);
       wait -= dt;
       happyWait -= dt;
       if (happyWait <= 0 && energy > 30 && expressions.getCurrentExpression() === 'NEUTRAL') {
@@ -465,19 +573,18 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
       wiggleFlippers();
       onMessage('oopsie!');
     }
+    if (state === 'CIRCULAR_WADDLE') {
+      updateCircle(dt);
+      return;
+    }
     const target = path[pathIndex] || destination;
-    const moving = moveToward(target.x, target.y, dt, {
-      running: state === 'PLAYFUL_SCURRY', slow: path.length === 0 || pathIndex === path.length - 1
-    });
+    const moving = moveToward(target.x, target.y, dt, state === 'PLAYFUL_SCURRY',
+      path.length === 0 || pathIndex === path.length - 1);
     if (moving && pathIndex < path.length - 1) {
       pathIndex++;
     } else if (moving) {
       if (state === 'PLAYFUL_SCURRY') onMessage('phew!');
-      settle();
-      path = [];
-      pathIndex = 0;
-      state = 'IDLE';
-      wait = random(0.5, 1.6);
+      finishMovement();
     }
   }
 
@@ -496,7 +603,6 @@ export function createRoaming(penguin, camera, canvas, { onMessage, onSleepChang
     },
     dispose() {
       stopFlipperWiggle();
-      feet.forEach((foot) => gsap.killTweensOf(foot.position));
       settle();
       shadow.geometry.dispose();
       shadow.material.map.dispose();

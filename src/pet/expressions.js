@@ -16,6 +16,8 @@ const faces = {
 export function createExpressions(penguin) {
   const get = (name) => penguin.getObjectByName(name);
   const eyes = [get('leftEye'), get('rightEye')];
+  const pupils = [get('leftPupil'), get('rightPupil')];
+  const pupilRest = pupils.map((part) => part.position.clone());
   const smileEyes = [get('leftSmileEye'), get('rightSmileEye')];
   const brows = [get('leftBrow'), get('rightBrow')];
   const lids = [get('leftEyelid'), get('rightEyelid')];
@@ -78,12 +80,23 @@ export function createExpressions(penguin) {
   reduced.addEventListener('change', apply);
   return {
     setExpression,
+    updateGaze(horizontal, vertical, dt) {
+      const active = !reduced.matches && expression !== 'SLEEPING' && expression !== 'YAWNING';
+      for (let index = 0; index < pupils.length; index++) {
+        const part = pupils[index];
+        part.position.x = THREE.MathUtils.damp(part.position.x,
+          pupilRest[index].x + (active ? THREE.MathUtils.clamp(horizontal, -1, 1) * 0.035 : 0), 11, dt);
+        part.position.y = THREE.MathUtils.damp(part.position.y,
+          pupilRest[index].y + (active ? THREE.MathUtils.clamp(vertical, -1, 1) * 0.025 : 0), 11, dt);
+      }
+    },
     clearExpression() { setExpression('NEUTRAL', { force: true }); },
     getCurrentExpression() { return expression; },
     dispose() {
       reduced.removeEventListener('change', apply);
       blinkTimer?.kill(); blink?.kill(); transition?.kill(); expiry?.kill();
       eyes.forEach((part) => { part.scale.y = 1; });
+      pupils.forEach((part, index) => part.position.copy(pupilRest[index]));
       cheeks.forEach((part, index) => part.material.color.copy(base.cheeks[index]));
     }
   };
