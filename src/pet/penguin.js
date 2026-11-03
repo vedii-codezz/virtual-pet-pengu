@@ -31,21 +31,21 @@ export function createPenguin() {
   curiosity.add(sleep);
   sleep.add(reaction);
 
-  const body = createVoxelEllipsoid([1.05, 1.28, 0.78], 0.19, (x, y, z) =>
-    z > 0.38 && Math.abs(x) < 0.77 && y > -0.92 && y < 0.94 ? 'white' : 'blue', materials);
-  body.position.y = 1.37;
+  const body = createVoxelEllipsoid([1.23, 1.14, 0.91], 0.19, (x, y, z) =>
+    z > 0.42 && Math.abs(x) < 0.92 && y > -0.88 && y < 0.82 ? 'white' : 'blue', materials);
+  body.position.y = 1.23;
   reaction.add(body);
 
   const head = new THREE.Group();
   head.name = 'head';
-  head.position.y = 2.78;
+  head.position.y = 2.43;
   const headLook = new THREE.Group();
   headLook.name = 'headLook';
-  headLook.position.y = 2.78;
+  headLook.position.y = 2.43;
   reaction.add(headLook);
   head.position.y = 0;
   headLook.add(head);
-  const headShape = createVoxelEllipsoid([1.04, 0.99, 0.83], 0.18, (x, y, z) => {
+  const headShape = createVoxelEllipsoid([1.1, 0.94, 0.88], 0.18, (x, y, z) => {
     if (z > 0.49 && Math.abs(x) < 0.78 && y > -0.58 && y < 0.56) return 'white';
     return y > 0.72 ? 'dark' : 'blue';
   }, materials);
@@ -79,23 +79,23 @@ export function createPenguin() {
 
     const idleFlipper = new THREE.Group();
     idleFlipper.name = side < 0 ? 'leftIdleFlipper' : 'rightIdleFlipper';
-    idleFlipper.position.set(side * 1.0, 1.83, 0);
+    idleFlipper.position.set(side * 1.13, 1.62, 0);
     reaction.add(idleFlipper);
     const flipper = new THREE.Group();
     flipper.name = side < 0 ? 'leftFlipper' : 'rightFlipper';
     flipper.rotation.z = side * 0.17;
     idleFlipper.add(flipper);
-    const fin = createVoxelEllipsoid([0.25, 0.57, 0.34], 0.15, () => 'blue', materials);
-    fin.position.set(side * 0.1, -0.43, 0);
+    const fin = createVoxelEllipsoid([0.25, 0.47, 0.32], 0.15, () => 'blue', materials);
+    fin.position.set(side * 0.08, -0.34, 0);
     flipper.add(fin);
 
     const foot = new THREE.Group();
     foot.name = side < 0 ? 'leftFoot' : 'rightFoot';
-    foot.position.set(side * 0.52, 0, 0.34);
+    foot.position.set(side * 0.57, 0, 0.37);
     reaction.add(foot);
-    const footShape = createVoxelEllipsoid([0.34, 0.16, 0.48], 0.13,
+    const footShape = createVoxelEllipsoid([0.28, 0.13, 0.38], 0.13,
       (x, y, z) => z > 0.15 ? 'orange' : 'yellow', materials);
-    footShape.position.y = 0.18;
+    footShape.position.y = 0.15;
     foot.add(footShape);
   }
 
