@@ -22,7 +22,7 @@ body {
 
 canvas {
   display: block;
-  touch-action: manipulation;
+  touch-action: auto;
 }
 
 .pengu-speech,

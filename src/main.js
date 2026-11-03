@@ -5,6 +5,7 @@ import { createRoaming } from './pet/roaming.js';
 import { createSpeech } from './pet/speech.js';
 import { createPurrAudio } from './pet/audio.js';
 import { createSleepVisual } from './pet/sleep.js';
+import { createExpressions } from './pet/expressions.js';
 import * as THREE from 'three';
 import './style.css';
 
@@ -44,18 +45,24 @@ sunlight.position.set(-4, 9, 7);
 scene.add(sunlight);
 
 const penguin = createPenguin();
+const expressions = createExpressions(penguin);
 const stopIdle = animatePenguin(penguin);
 const speech = createSpeech(penguin, camera, renderer.domElement);
 const audio = createPurrAudio();
 const sleep = createSleepVisual(penguin, camera, renderer.domElement, stopIdle);
 const roaming = createRoaming(penguin, camera, renderer.domElement, {
   onMessage: (message) => speech.show(message),
-  onSleepChange: (sleeping) => sleep.setSleeping(sleeping)
+  onSleepChange: (sleeping) => sleep.setSleeping(sleeping),
+  expressions
 });
 scene.add(roaming.world);
 const stopPetting = enablePetting(penguin, camera, renderer, {
   onActiveChange: (active) => roaming.setShy(active),
   onPet: () => { speech.show('hehe... ♡', true); audio.purr(); },
+  onEmptyTap: (event) => roaming.noticeTap(event.clientX, event.clientY),
+  onPointerMove: (event) => roaming.trackPointer(event),
+  onPointerLeave: () => roaming.clearPointer(),
+  onDirectTap: () => { if (roaming.state === 'SLEEPING') roaming.wakeFromTap(); },
   canPet: () => roaming.state !== 'SLEEPING'
 });
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -74,6 +81,7 @@ if (import.meta.hot) {
     speech.dispose();
     audio.dispose();
     stopIdle();
+    expressions.dispose();
     disposePenguin(penguin);
     renderer.dispose();
     renderer.domElement.remove();

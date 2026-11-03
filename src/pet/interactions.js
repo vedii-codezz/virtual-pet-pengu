@@ -28,6 +28,10 @@ function createHeart() {
 export function enablePetting(penguin, camera, renderer, {
   onActiveChange = () => {},
   onPet = () => {},
+  onEmptyTap = () => {},
+  onPointerMove = () => {},
+  onPointerLeave = () => {},
+  onDirectTap = () => {},
   canPet = () => true
 } = {}) {
   if (activeInteractions.has(penguin)) return activeInteractions.get(penguin);
@@ -35,8 +39,6 @@ export function enablePetting(penguin, camera, renderer, {
   const reaction = penguin.getObjectByName('reaction');
   const leftFlipper = penguin.getObjectByName('leftFlipper');
   const rightFlipper = penguin.getObjectByName('rightFlipper');
-  const head = penguin.getObjectByName('head');
-  const cheek = penguin.getObjectByName('leftCheek')?.material;
   if (!reaction || !leftFlipper || !rightFlipper) return () => {};
 
   const canvas = renderer.domElement;
@@ -49,8 +51,6 @@ export function enablePetting(penguin, camera, renderer, {
     tilt: reaction.rotation.z,
     left: leftFlipper.rotation.z,
     right: rightFlipper.rotation.z,
-    head: head.rotation.z,
-    blush: cheek.color.clone(),
     heartY: heart.position.y
   };
   let lastPet = -Infinity;
@@ -72,8 +72,6 @@ export function enablePetting(penguin, camera, renderer, {
     reaction.rotation.z = initial.tilt;
     leftFlipper.rotation.z = initial.left;
     rightFlipper.rotation.z = initial.right;
-    head.rotation.z = initial.head;
-    cheek.color.copy(initial.blush);
     heart.position.y = initial.heartY;
     heart.material.opacity = 1;
     heart.visible = false;
@@ -89,7 +87,6 @@ export function enablePetting(penguin, camera, renderer, {
     onPet();
 
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      cheek.color.set('#FF8FA4');
       timeline = gsap.delayedCall(0.6, resetPose);
       return true;
     }
@@ -98,10 +95,6 @@ export function enablePetting(penguin, camera, renderer, {
     timeline.to(reaction.position, { y: initial.y + 0.17, duration: 0.18, ease: 'power2.out' }, 0)
       .to(reaction.position, { y: initial.y, duration: 0.32, ease: 'bounce.out' }, 0.18)
       .to(reaction.rotation, { z: initial.tilt + 0.045, duration: 0.2, yoyo: true, repeat: 1 }, 0)
-      .to(head.rotation, { z: initial.head + 0.09, duration: 0.22, ease: 'sine.out' }, 0.05)
-      .to(head.rotation, { z: initial.head, duration: 0.35, ease: 'sine.inOut' }, 0.35)
-      .to(cheek.color, { r: new THREE.Color('#FF8FA4').r, g: new THREE.Color('#FF8FA4').g, b: new THREE.Color('#FF8FA4').b, duration: 0.28 }, 0)
-      .to(cheek.color, { r: initial.blush.r, g: initial.blush.g, b: initial.blush.b, duration: 0.45 }, 0.4)
       .to(leftFlipper.rotation, { z: initial.left - 0.3, duration: 0.13, yoyo: true, repeat: 3 }, 0)
       .to(rightFlipper.rotation, { z: initial.right + 0.3, duration: 0.13, yoyo: true, repeat: 3 }, 0)
       .to(heart.position, { y: initial.heartY + 0.55, duration: 0.7, ease: 'power1.out' }, 0)
@@ -110,27 +103,32 @@ export function enablePetting(penguin, camera, renderer, {
   }
 
   function onPointerDown(event) {
-    if (canPet() && isOverPenguin(event)) react();
+    if (isOverPenguin(event)) {
+      onDirectTap(event);
+      if (canPet()) react();
+    } else onEmptyTap(event);
   }
 
-  function onPointerMove(event) {
+  function handlePointerMove(event) {
     canvas.style.cursor = event.pointerType === 'mouse' && isOverPenguin(event) ? 'pointer' : '';
+    onPointerMove(event);
   }
 
-  function onPointerLeave() {
+  function handlePointerLeave() {
     canvas.style.cursor = '';
+    onPointerLeave();
   }
 
   canvas.addEventListener('pointerdown', onPointerDown);
-  canvas.addEventListener('pointermove', onPointerMove);
-  canvas.addEventListener('pointerleave', onPointerLeave);
+  canvas.addEventListener('pointermove', handlePointerMove);
+  canvas.addEventListener('pointerleave', handlePointerLeave);
 
   const dispose = () => {
     if (disposed) return;
     disposed = true;
     canvas.removeEventListener('pointerdown', onPointerDown);
-    canvas.removeEventListener('pointermove', onPointerMove);
-    canvas.removeEventListener('pointerleave', onPointerLeave);
+    canvas.removeEventListener('pointermove', handlePointerMove);
+    canvas.removeEventListener('pointerleave', handlePointerLeave);
     canvas.style.cursor = '';
     timeline?.kill();
     resetPose();

@@ -39,7 +39,12 @@ export function createPenguin() {
   const head = new THREE.Group();
   head.name = 'head';
   head.position.y = 2.78;
-  reaction.add(head);
+  const headLook = new THREE.Group();
+  headLook.name = 'headLook';
+  headLook.position.y = 2.78;
+  reaction.add(headLook);
+  head.position.y = 0;
+  headLook.add(head);
   const headShape = createVoxelEllipsoid([1.04, 0.99, 0.83], 0.18, (x, y, z) => {
     if (z > 0.49 && Math.abs(x) < 0.78 && y > -0.58 && y < 0.56) return 'white';
     return y > 0.72 ? 'dark' : 'blue';
@@ -54,8 +59,23 @@ export function createPenguin() {
     box(eye, 'highlight', [0.11, 0.11, 0.05], [-0.07, 0.09, 0.11]);
     head.add(eye);
 
+    const smileEye = new THREE.Group();
+    smileEye.name = side < 0 ? 'leftSmileEye' : 'rightSmileEye';
+    smileEye.position.set(side * 0.46, 0.09, 1.055);
+    box(smileEye, 'brown', [0.12, 0.09, 0.07], [-0.12, 0, 0]);
+    box(smileEye, 'brown', [0.13, 0.09, 0.07], [0, 0.07, 0]);
+    box(smileEye, 'brown', [0.12, 0.09, 0.07], [0.12, 0, 0]);
+    smileEye.visible = false;
+    head.add(smileEye);
+
+    const eyelid = box(head, 'blue', [0.38, 0.08, 0.19], [side * 0.46, 0.34, 1.035]);
+    eyelid.name = side < 0 ? 'leftEyelid' : 'rightEyelid';
+    const brow = box(head, 'dark', [0.41, 0.08, 0.12], [side * 0.46, 0.48, 1.05]);
+    brow.name = side < 0 ? 'leftBrow' : 'rightBrow';
+
     const cheek = box(head, 'pink', [0.27, 0.16, 0.12], [side * 0.76, -0.36, 0.77]);
     cheek.name = side < 0 ? 'leftCheek' : 'rightCheek';
+    cheek.material = cheek.material.clone();
 
     const idleFlipper = new THREE.Group();
     idleFlipper.name = side < 0 ? 'leftIdleFlipper' : 'rightIdleFlipper';
@@ -79,8 +99,13 @@ export function createPenguin() {
     foot.add(footShape);
   }
 
-  box(head, 'yellow', [0.52, 0.2, 0.37], [0, -0.32, 1.04]);
-  box(head, 'orange', [0.37, 0.12, 0.29], [0, -0.48, 1.03]);
+  const mouth = box(head, 'brown', [0.32, 0.07, 0.08], [0, -0.46, 1.24]);
+  mouth.name = 'mouth';
+  mouth.visible = false;
+  const upperBeak = box(head, 'yellow', [0.52, 0.2, 0.37], [0, -0.32, 1.04]);
+  upperBeak.name = 'upperBeak';
+  const lowerBeak = box(head, 'orange', [0.37, 0.12, 0.29], [0, -0.48, 1.03]);
+  lowerBeak.name = 'lowerBeak';
 
   return penguin;
 }
