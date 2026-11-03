@@ -54,8 +54,8 @@ export function createSleepVisual(penguin, camera, canvas, idle) {
     stopZ();
     if (!sleeping) return;
     update();
-    if (reducedMotion.matches) z.style.opacity = '1';
-    else scheduleZ();
+    z.style.opacity = '1';
+    if (!reducedMotion.matches) scheduleZ();
   }
 
   function onMotionChange() {

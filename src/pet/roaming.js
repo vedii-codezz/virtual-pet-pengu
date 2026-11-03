@@ -138,14 +138,24 @@ export function createRoaming(penguin, camera, canvas, { onMessage: showMessage,
     activities?.resize();
   }
 
-  function settle() {
+  function settle(resetFlippers = true, resetMotion = true) {
     currentSpeed = 0;
-    walk.rotation.z = 0;
-    walk.rotation.x = 0;
-    walk.scale.y = 1;
-    head.position.y = headRestY;
-    feet.forEach((foot) => { foot.position.y = 0; });
-    idleFlippers.forEach((flipper) => { flipper.rotation.z = 0; });
+    if (resetMotion) {
+      walk.rotation.z = 0;
+      walk.rotation.x = 0;
+      walk.scale.y = 1;
+      head.position.y = headRestY;
+      feet.forEach((foot) => { foot.position.y = 0; });
+    }
+    if (resetFlippers) idleFlippers.forEach((flipper) => { flipper.rotation.z = 0; });
+  }
+
+  function softenStop(dt) {
+    walk.rotation.z = THREE.MathUtils.damp(walk.rotation.z, 0, 9, dt);
+    walk.rotation.x = THREE.MathUtils.damp(walk.rotation.x, 0, 9, dt);
+    walk.scale.y = THREE.MathUtils.damp(walk.scale.y, 1, 9, dt);
+    head.position.y = THREE.MathUtils.damp(head.position.y, headRestY, 9, dt);
+    for (const foot of feet) foot.position.y = THREE.MathUtils.damp(foot.position.y, 0, 11, dt);
   }
 
   function relaxPose(dt) {
@@ -177,11 +187,11 @@ export function createRoaming(penguin, camera, canvas, { onMessage: showMessage,
     circle = null;
   }
 
-  function stopFlipperWiggle() {
+  function stopFlipperWiggle(reset = true) {
     flipperTween?.kill();
     flipperTween = undefined;
     idleFlippers.forEach((flipper) => gsap.killTweensOf(flipper.rotation));
-    idleFlippers.forEach((flipper) => { flipper.rotation.z = 0; });
+    if (reset) idleFlippers.forEach((flipper) => { flipper.rotation.z = 0; });
   }
 
   function wiggleFlippers() {
@@ -378,7 +388,8 @@ export function createRoaming(penguin, camera, canvas, { onMessage: showMessage,
   function clearPointer() { hasMouse = false; hoverLook = 0; }
   function noticeTap(x, y) {
     if (state === 'SLEEPING' || state === 'YAWNING' || state === 'WAKING' || state === 'SHY') return;
-    if (activities.active) activities.interrupt();
+    const interruptedActivity = Boolean(activities.active);
+    if (interruptedActivity) activities.interrupt();
     pointer.set(x, y);
     const rect = canvas.getBoundingClientRect();
     if (y >= rect.top + rect.height * 0.65) {
@@ -393,7 +404,7 @@ export function createRoaming(penguin, camera, canvas, { onMessage: showMessage,
       path = [];
       circle = null;
       speed = 2.35;
-      stopFlipperWiggle();
+      stopFlipperWiggle(!interruptedActivity);
       expressions.setExpression('CURIOUS', { force: true });
       if (Math.random() < 0.35) onMessage('wheee!');
       return;
@@ -402,8 +413,8 @@ export function createRoaming(penguin, camera, canvas, { onMessage: showMessage,
     tapBubble = Math.random() < 0.4 ? 0.5 : 0;
     state = 'CURIOUS';
     circle = null;
-    settle();
-    stopFlipperWiggle();
+    settle(!interruptedActivity, !interruptedActivity);
+    stopFlipperWiggle(!interruptedActivity);
     expressions.setExpression('CURIOUS', { force: true });
   }
   function wakeFromTap() {
@@ -419,13 +430,14 @@ export function createRoaming(penguin, camera, canvas, { onMessage: showMessage,
   function setShy(value) {
     if (value) {
       if (state === 'SLEEPING' || state === 'WAKING') return;
-      if (activities.active) activities.interrupt();
+      const interruptedActivity = Boolean(activities.active);
+      if (interruptedActivity) activities.interrupt();
       state = 'SHY';
       petCount++;
       tapHold = 0;
       expressions.setExpression('SHY');
-      settle();
-      stopFlipperWiggle();
+      settle(!interruptedActivity, !interruptedActivity);
+      stopFlipperWiggle(!interruptedActivity);
     } else if (state === 'SHY') {
       state = 'IDLE';
       wait = random(0.7, 1.6);
@@ -448,7 +460,6 @@ export function createRoaming(penguin, camera, canvas, { onMessage: showMessage,
     if (state === 'SLEEPING') {
       energy = Math.min(100, energy + dt * 2.2);
       if (energy >= 88 && !activities.active) wake();
-      else if (energy >= 88 && activities.active === 'BLANKET_NAP') activities.wake();
     } else {
       energy = Math.max(0, energy - dt * 0.34);
       if (energy <= 18 && state !== 'SHY' && state !== 'YAWNING' && !activities.active) {
@@ -473,7 +484,16 @@ export function createRoaming(penguin, camera, canvas, { onMessage: showMessage,
       if (yawnTime <= 0) enterSleep();
       return;
     }
-    if (state === 'SLEEPING' || state === 'SHY') return;
+    if (state === 'SHY') {
+      softenStop(dt);
+      idleFlippers[0].rotation.z = THREE.MathUtils.damp(idleFlippers[0].rotation.z, 0.11, 9, dt);
+      idleFlippers[1].rotation.z = THREE.MathUtils.damp(idleFlippers[1].rotation.z, -0.11, 9, dt);
+      head.rotation.x = THREE.MathUtils.damp(head.rotation.x, 0, 9, dt);
+      head.rotation.y = THREE.MathUtils.damp(head.rotation.y, 0, 9, dt);
+      head.rotation.z = THREE.MathUtils.damp(head.rotation.z, 0, 9, dt);
+      return;
+    }
+    if (state === 'SLEEPING') return;
     hoverLook = Math.max(0, hoverLook - dt);
     scurryCooldown = Math.max(0, scurryCooldown - dt);
     stumbleTime = Math.max(0, stumbleTime - dt);
@@ -572,6 +592,7 @@ export function createRoaming(penguin, camera, canvas, { onMessage: showMessage,
     }
 
     if (state === 'CURIOUS') {
+      softenStop(dt);
       idleFlippers[0].rotation.z = THREE.MathUtils.damp(idleFlippers[0].rotation.z,
         reduced ? 0 : -0.16, 7, dt);
       idleFlippers[1].rotation.z = THREE.MathUtils.damp(idleFlippers[1].rotation.z, 0, 7, dt);

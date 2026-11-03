@@ -23,7 +23,9 @@ export function createActivities({ penguin, world, propWorld, pose, expressions,
   let ballVelocityX = 0;
   let ballVelocityZ = 0;
   let ballKicks = 0;
+  let flapBurst = 0;
   let surprise = false;
+  let retracting = false;
 
   function setPhase(next, length = 0) {
     phase = next;
@@ -53,6 +55,33 @@ export function createActivities({ penguin, world, propWorld, pose, expressions,
     props.ball.scale.setScalar(0.01);
     props.page.rotation.y = 0;
     props.ball.rotation.set(0, 0, 0);
+    props.spectacles.position.y = 0.08;
+    props.spectacles.rotation.x = 0;
+    props.newspaper.position.y = -0.19;
+    props.newspaper.position.z = 1.08;
+    props.newspaper.rotation.x = -0.13;
+    props.newspaper.rotation.z = 0;
+    props.blanket.position.set(0, 0.95, 1.01);
+  }
+
+  function retractProps(dt) {
+    if (!retracting) return;
+    const close = (value) => approach(value, 0.01, dt, 16);
+    props.spectacles.scale.setScalar(close(props.spectacles.scale.x));
+    props.newspaper.scale.setScalar(close(props.newspaper.scale.x));
+    props.blanket.scale.x = close(props.blanket.scale.x);
+    props.blanket.scale.y = close(props.blanket.scale.y);
+    props.ball.scale.setScalar(close(props.ball.scale.x));
+    props.ballShadow.scale.setScalar(props.ball.scale.x);
+    props.spectacles.position.y = approach(props.spectacles.position.y, 0.27, dt, 12);
+    props.newspaper.position.y = approach(props.newspaper.position.y, -0.48, dt, 12);
+    props.blanket.position.x = approach(props.blanket.position.x, -1.05, dt, 10);
+    props.blanket.position.y = approach(props.blanket.position.y, 0.58, dt, 10);
+    if (Math.max(props.spectacles.scale.x, props.newspaper.scale.x,
+      props.blanket.scale.x, props.blanket.scale.y, props.ball.scale.x) < 0.035) {
+      retracting = false;
+      hideProps();
+    }
   }
 
   function interrupt() {
@@ -60,7 +89,7 @@ export function createActivities({ penguin, world, propWorld, pose, expressions,
     if (active === 'BLANKET_NAP' && phase === 'SLEEP') onSleepChange(false);
     active = null;
     setPhase('');
-    hideProps();
+    retracting = true;
     expressions.clearExpression();
     cooldown = Math.max(cooldown, random(14, 23));
   }
@@ -70,12 +99,14 @@ export function createActivities({ penguin, world, propWorld, pose, expressions,
     active = null;
     setPhase('');
     hideProps();
-    cooldown = random(22, 38);
+    retracting = false;
+    cooldown = previous === 'BLANKET_NAP' ? random(45, 70) : random(22, 38);
     onDone(previous);
   }
 
   function start(kind) {
     if (active) interrupt();
+    if (retracting) { hideProps(); retracting = false; }
     active = kind;
     surprise = false;
     ballKicks = 0;
@@ -83,8 +114,14 @@ export function createActivities({ penguin, world, propWorld, pose, expressions,
     if (kind === 'READING') {
       props.spectacles.visible = true;
       props.newspaper.visible = true;
+      props.spectacles.position.y = 0.37;
+      props.spectacles.rotation.x = -0.18;
+      props.newspaper.position.y = -0.9;
+      props.newspaper.position.z = 0.67;
+      props.newspaper.rotation.x = -0.46;
+      props.newspaper.rotation.z = -0.13;
       expressions.setExpression('CURIOUS', { force: true });
-      setPhase('INTRO', getReduced() ? 0.25 : 1.1);
+      setPhase('INTRO', getReduced() ? 0.35 : 1.55);
     } else if (kind === 'BALL_PLAY') {
       const { xLimit, depthLimit } = getLimits();
       ballDirection = world.position.x > xLimit * 0.45 ? -1 : world.position.x < -xLimit * 0.45 ? 1 : Math.random() < 0.5 ? -1 : 1;
@@ -120,7 +157,8 @@ export function createActivities({ penguin, world, propWorld, pose, expressions,
     const choice = Math.random();
     if (choice < 0.12) return start('READING');
     if (choice < 0.24) return start('BALL_PLAY');
-    if (choice < 0.34) return start('HAPPY_DANCE');
+    if (choice < 0.29) return start('BLANKET_NAP');
+    if (choice < 0.39) return start('HAPPY_DANCE');
     cooldown = random(6, 12);
     return false;
   }
@@ -159,6 +197,7 @@ export function createActivities({ penguin, world, propWorld, pose, expressions,
 
   function kickBall() {
     ballKicks++;
+    flapBurst = getReduced() ? 0 : 0.65;
     ballDirection = props.ball.position.x >= world.position.x ? 1 : -1;
     ballVelocityX = ballDirection * random(1.35, 1.8);
     ballVelocityZ = random(-0.2, 0.2);
@@ -179,6 +218,7 @@ export function createActivities({ penguin, world, propWorld, pose, expressions,
   function update(dt) {
     cooldown = Math.max(0, cooldown - dt);
     if (!active) {
+      retractProps(dt);
       pose.position.y = approach(pose.position.y, 0, dt, 8);
       pose.rotation.z = approach(pose.rotation.z, 0, dt, 8);
       pose.rotation.x = approach(pose.rotation.x, 0, dt, 8);
@@ -189,20 +229,39 @@ export function createActivities({ penguin, world, propWorld, pose, expressions,
     const reduced = getReduced();
     if (active === 'HAPPY_DANCE') {
       const beat = reduced ? 0 : Math.sin(time * 15);
-      setFlippers(-0.15 - beat * 0.18, 0.15 + beat * 0.18, dt);
+      setFlippers(reduced ? -0.1 : -0.3 - beat * 0.16,
+        reduced ? 0.1 : 0.3 + beat * 0.16, dt);
       pose.rotation.z = approach(pose.rotation.z, reduced ? 0 : beat * 0.045, dt, 12);
       pose.position.y = approach(pose.position.y, reduced ? 0 : Math.max(0, beat) * 0.04, dt, 10);
       if (time >= duration) finish();
       return;
     }
     if (active === 'READING') {
-      setFlippers(0.23, -0.23, dt);
+      const introducing = phase === 'INTRO';
+      const removing = phase === 'OUTRO';
+      const glassesOn = !removing || time < duration * 0.55;
+      const paperUp = !introducing || time > duration * 0.38;
+      setFlippers(removing ? 0.05 : 0.23, removing ? -0.05 : -0.23, dt);
       restoreFlipperPosition(dt);
+      if (introducing && !reduced && time < duration * 0.57) {
+        flippers[1].position.x = approach(flippers[1].position.x, 0.7, dt, 10);
+        flippers[1].position.y = approach(flippers[1].position.y, 2.26, dt, 10);
+      }
       head.rotation.x = approach(head.rotation.x, 0.12, dt);
       head.rotation.z = approach(head.rotation.z, reduced ? 0 : Math.sin(time * 1.2) * 0.035, dt);
-      const showing = phase !== 'OUTRO';
-      props.spectacles.scale.setScalar(approach(props.spectacles.scale.x, showing ? 1 : 0.01, dt, 8));
-      props.newspaper.scale.setScalar(approach(props.newspaper.scale.x, showing ? 1 : 0.01, dt, 7));
+      props.spectacles.scale.setScalar(approach(props.spectacles.scale.x, glassesOn ? 1 : 0.01, dt, 8));
+      props.spectacles.position.y = approach(props.spectacles.position.y, glassesOn ? 0.08 : 0.37, dt, 7);
+      props.spectacles.rotation.x = approach(props.spectacles.rotation.x, glassesOn ? 0 : -0.18, dt, 7);
+      props.newspaper.scale.setScalar(approach(props.newspaper.scale.x,
+        paperUp && !removing ? 1 : 0.01, dt, 7));
+      props.newspaper.position.y = approach(props.newspaper.position.y,
+        paperUp && !removing ? -0.19 : -0.9, dt, 6);
+      props.newspaper.position.z = approach(props.newspaper.position.z,
+        paperUp && !removing ? 1.08 : 0.67, dt, 6);
+      props.newspaper.rotation.x = approach(props.newspaper.rotation.x,
+        paperUp && !removing ? -0.13 : -0.46, dt, 6);
+      props.newspaper.rotation.z = approach(props.newspaper.rotation.z,
+        paperUp && !removing ? 0 : -0.13, dt, 6);
       props.page.rotation.y = approach(props.page.rotation.y,
         phase === 'READ' && !reduced ? -Math.max(0, 1 - Math.abs((time % 4) - 2) / 0.5) * 1.05 : 0, dt, 12);
       if (phase === 'INTRO' && time >= duration) {
@@ -215,7 +274,7 @@ export function createActivities({ penguin, world, propWorld, pose, expressions,
           expressions.setExpression('CURIOUS', { force: true });
           onMessage('huh?!');
         }
-        if (time >= duration) setPhase('OUTRO', reduced ? 0.3 : 1.1);
+        if (time >= duration) setPhase('OUTRO', reduced ? 0.4 : 1.35);
       } else if (phase === 'OUTRO' && time >= duration) finish();
       return;
     }
@@ -234,8 +293,10 @@ export function createActivities({ penguin, world, propWorld, pose, expressions,
         const reached = move(ball.position.x - ballDirection * 0.55, ball.position.z, dt, false, 0.92);
         if (reached || time >= duration) kickBall();
       } else if (phase === 'CHASE') {
-        const balance = reduced ? 0 : Math.sin(time * 15) * 0.045;
-        setFlippers(-0.22 + balance, 0.22 - balance, dt);
+        flapBurst = Math.max(0, flapBurst - dt);
+        const balance = reduced ? 0 : Math.sin(time * 17) * (flapBurst > 0 ? 0.16 : 0.09);
+        setFlippers(reduced ? -0.08 : -0.29 + balance,
+          reduced ? 0.08 : 0.29 - balance, dt);
         const side = ball.position.x >= world.position.x ? 1 : -1;
         const reached = move(ball.position.x - side * 0.55, ball.position.z, dt, true, reduced ? 0.85 : 1.9);
         if ((reached && time > 0.8) || time >= duration) {
@@ -284,10 +345,15 @@ export function createActivities({ penguin, world, propWorld, pose, expressions,
       const reached = move(napSpotX, napSpotZ, dt, false, reduced ? 0.65 : 0.72);
       if (reached || time >= duration) setPhase('LOWER', reduced ? 0.4 : 1.8);
     } else if (phase === 'LOWER') {
-      setFlippers(-0.07, 0.07, dt);
-      pose.rotation.z = approach(pose.rotation.z, napSide * (reduced ? 0.42 : 0.72), dt, reduced ? 7 : 2.8);
-      pose.position.y = approach(pose.position.y, reduced ? 0.26 : 0.55, dt, reduced ? 7 : 2.8);
+      setFlippers(0.2, 0.05, dt);
+      flippers[0].position.x = approach(flippers[0].position.x, -0.68, dt, 3.5);
+      flippers[0].position.y = approach(flippers[0].position.y, 1.35, dt, 3.5);
+      pose.rotation.z = approach(pose.rotation.z, napSide * (reduced ? 0.42 : 0.82), dt, reduced ? 7 : 2.8);
+      pose.position.y = approach(pose.position.y, reduced ? 0.26 : 0.63, dt, reduced ? 7 : 2.8);
       pose.rotation.x = approach(pose.rotation.x, reduced ? 0 : 0.12, dt, 3);
+      head.rotation.x = approach(head.rotation.x, 0.08, dt, 4);
+      head.rotation.y = approach(head.rotation.y, 0, dt, 4);
+      head.rotation.z = approach(head.rotation.z, -napSide * 0.12, dt, 4);
       props.blanket.position.x = approach(props.blanket.position.x, 0, dt, 3);
       props.blanket.position.y = approach(props.blanket.position.y, 0.95, dt, 3);
       props.blanket.position.z = approach(props.blanket.position.z, 1.02, dt, 3);
@@ -301,7 +367,7 @@ export function createActivities({ penguin, world, propWorld, pose, expressions,
         onMessage('SLEEPY');
       }
     } else if (phase === 'SLEEP') {
-      pose.rotation.z = napSide * (reduced ? 0.42 : 0.72) + (reduced ? 0 : Math.sin(time * 0.9) * 0.012);
+      pose.rotation.z = napSide * (reduced ? 0.42 : 0.82) + (reduced ? 0 : Math.sin(time * 0.9) * 0.012);
       if (time >= duration) wake();
     } else if (phase === 'WAKE') {
       if (!surprise && time > 0.45) {
@@ -315,6 +381,10 @@ export function createActivities({ penguin, world, propWorld, pose, expressions,
       pose.rotation.z = approach(pose.rotation.z, 0, dt, 3);
       pose.rotation.x = approach(pose.rotation.x, 0, dt, 3);
       pose.position.y = approach(pose.position.y, 0, dt, 3);
+      head.rotation.x = approach(head.rotation.x, 0, dt, 4);
+      head.rotation.y = approach(head.rotation.y, 0, dt, 4);
+      head.rotation.z = approach(head.rotation.z, 0, dt, 4);
+      restoreFlipperPosition(dt);
       setFlippers(-0.29, 0.29, dt);
       if (time > duration * 0.62) expressions.setExpression('HAPPY', { force: true });
       if (time >= duration) finish();
@@ -338,6 +408,8 @@ export function createActivities({ penguin, world, propWorld, pose, expressions,
     },
     dispose() {
       interrupt();
+      retracting = false;
+      hideProps();
       pose.position.set(0, 0, 0);
       pose.rotation.set(0, 0, 0);
       flippers.forEach((flipper, index) => flipper.position.copy(flipperRest[index]));
